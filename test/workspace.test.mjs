@@ -44,17 +44,26 @@ test('preferences default to session mode and clamp invalid input', () => {
   assert.deepEqual(getPrefs().manualOrder.__flat, ['a', 'b']);
 
   assert.equal(getPrefs().showSubagents, false);
-  assert.equal(getPrefs().showEmptyWorkspaces, false);
+  assert.equal(getPrefs().showRecent, true);
+  assert.equal(getPrefs().showPinned, true);
+  assert.equal(getPrefs().showActive, true);
+  assert.equal(getPrefs().recentLimit, 5);
   assert.equal(getPrefs().showTimes, true);
   setPrefs({
     showSubagents: true,
-    showEmptyWorkspaces: true,
+    showRecent: false,
+    showPinned: false,
+    showActive: false,
+    recentLimit: 99,
     showTimes: false,
     compact: true,
     collapsedGroups: ['w1', 3, 'w2'],
   });
   assert.equal(getPrefs().showSubagents, true);
-  assert.equal(getPrefs().showEmptyWorkspaces, true);
+  assert.equal(getPrefs().showRecent, false);
+  assert.equal(getPrefs().showPinned, false);
+  assert.equal(getPrefs().showActive, false);
+  assert.equal(getPrefs().recentLimit, 5);
   assert.equal(getPrefs().showTimes, false);
   assert.equal(getPrefs().compact, true);
   assert.deepEqual(getPrefs().collapsedGroups, ['w1', 'w2']);

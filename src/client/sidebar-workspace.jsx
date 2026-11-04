@@ -26,6 +26,7 @@ import {
   ArchiveIcon,
   ChevronDownIcon,
   ChevronRightIcon,
+  ClockIcon,
   FolderIcon,
   LayoutIcon,
   MoreIcon,
@@ -259,6 +260,7 @@ export function SidebarWorkspacePane({
   const [dialog, setDialog] = useState(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [expandedActive, setExpandedActive] = useState(false);
+  const [expandedRecent, setExpandedRecent] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState({});
   const [contextMenu, setContextMenu] = useState(null);
   const [search, setSearch] = useState({ state: 'idle', items: [], error: '' });
@@ -367,17 +369,34 @@ export function SidebarWorkspacePane({
     () => pinnedRows.flatMap((row) => familyFor(annotated, row.session.id)),
     [annotated, pinnedRows],
   );
-  const activeIds = useMemo(() => new Set(activeRowsView.map((row) => row.session.id)), [activeRowsView]);
+  const activeFamilyIds = useMemo(
+    () => familyIds(annotated, activeTop.map((row) => row.session.id)),
+    [annotated, activeTop],
+  );
 
-  const restRows = useMemo(
-    () =>
-      annotated.filter(
-        (row) =>
-          !pinnedIds.has(row.session.id) &&
-          !activeIds.has(row.session.id) &&
-          (prefs.showIdle || row.status !== 'idle'),
+  // "Recent" is the remaining recency list: pinned and active families already
+  // have their own shortcuts above, so they are not repeated here.
+  const recentTop = useMemo(() => {
+    const excluded = new Set([...pinnedIds, ...activeFamilyIds]);
+    return topLevelRows(
+      sortFamilies(
+        annotated.filter((row) => !excluded.has(row.session.id) && (prefs.showIdle || row.status !== 'idle')),
+        byUpdated,
       ),
-    [annotated, pinnedIds, activeIds, prefs.showIdle],
+    );
+  }, [annotated, pinnedIds, activeFamilyIds, prefs.showIdle]);
+
+  const recentRowsView = useMemo(() => {
+    const limit = expandedRecent ? 0 : prefs.recentLimit;
+    const picked = limit > 0 ? recentTop.slice(0, limit) : recentTop;
+    return picked.flatMap((row) => familyFor(annotated, row.session.id));
+  }, [annotated, recentTop, expandedRecent, prefs.recentLimit]);
+
+  // Every session still belongs to its workspace, including rows that also
+  // appear in the pinned/active/recent shortcut groups above.
+  const restRows = useMemo(
+    () => annotated.filter((row) => prefs.showIdle || row.status !== 'idle'),
+    [annotated, prefs.showIdle],
   );
 
   const groups = useMemo(() => {
@@ -393,10 +412,10 @@ export function SidebarWorkspacePane({
           prefs.sort === 'manual' ? applyFamilyOrder(group.rows, prefs.manualOrder[key]) : sortFamilies(group.rows, byUpdated);
         return { ...group, rows: sorted, key };
       })
-      // Empty workspaces are hidden by default; the setting keeps them as a
-      // convenient "start a session here" affordance.
-      .filter((group) => prefs.showEmptyWorkspaces || group.rows.length > 0);
-  }, [restRows, workspaces, prefs.layout, prefs.nestWorkspaces, prefs.sort, prefs.manualOrder, prefs.showEmptyWorkspaces]);
+      // Empty workspaces stay visible: their header is still a useful place to
+      // start a session from the workspace context menu.
+      ;
+  }, [restRows, workspaces, prefs.layout, prefs.nestWorkspaces, prefs.sort, prefs.manualOrder]);
 
   const archived = useMemo(() => {
     if (prefs.archivedFilter === 'hide') return [];
@@ -862,24 +881,12 @@ export function SidebarWorkspacePane({
     const visible = takeTopFamilies(group.rows, tops.slice(0, shown), 0);
     const hidden = shown < tops.length;
     const canLess = extra > 0;
-    const empty = group.rows.length === 0;
     return (
       <section className="dsv-sideGroup" key={group.key} aria-label={group.workspace ? workspaceLabel(group.workspace) : t('section.all')}>
         {renderWorkspaceHead(group, index)}
         {!collapsed && (
           <>
             {visible.map((row) => renderRow(row))}
-            {empty && (
-              <button
-                type="button"
-                className="dsv-sideEmptyWorkspace"
-                style={{ paddingLeft: 28 + group.depth * 12 }}
-                onClick={() => group.workspace && startSession(group.workspace.workspaceId)}
-              >
-                {t('side.emptyWorkspace')}
-                {group.workspace ? ` · ${t('action.newSession')}` : ''}
-              </button>
-            )}
             {(hidden || canLess) && (
               <button
                 type="button"
@@ -1082,7 +1089,7 @@ export function SidebarWorkspacePane({
           </section>
         ) : (
           <>
-            {prefs.archivedFilter !== 'only' && activeRowsView.length > 0 && (
+            {prefs.archivedFilter !== 'only' && prefs.showActive && activeRowsView.length > 0 && (
               <section className="dsv-sideGroup" aria-label={t('side.active')}>
                 <div className="dsv-sideGroupHead dsv-sideSectionHead">
                   <div className="dsv-sideGroupToggle">
@@ -1100,7 +1107,7 @@ export function SidebarWorkspacePane({
               </section>
             )}
 
-            {prefs.archivedFilter !== 'only' && pinnedRows.length > 0 && (
+            {prefs.archivedFilter !== 'only' && prefs.showPinned && pinnedRows.length > 0 && (
               <section className="dsv-sideGroup" aria-label={t('section.pinned')}>
                 <div className="dsv-sideGroupHead dsv-sideSectionHead">
                   <div className="dsv-sideGroupToggle">
@@ -1113,9 +1120,25 @@ export function SidebarWorkspacePane({
               </section>
             )}
 
-            {prefs.archivedFilter !== 'only' &&
-              (prefs.showEmptyWorkspaces || prefs.showIdle || activeRowsView.length > 0 || pinnedRows.length > 0) &&
-              groups.map((group, index) => renderGroup(group, index))}
+            {prefs.archivedFilter !== 'only' && prefs.showRecent && recentRowsView.length > 0 && (
+              <section className="dsv-sideGroup" aria-label={t('side.recent')}>
+                <div className="dsv-sideGroupHead dsv-sideSectionHead">
+                  <div className="dsv-sideGroupToggle">
+                    <ClockIcon size={11} />
+                    <span className="dsv-sideGroupTitle">{t('side.recent')}</span>
+                    <span className="dsv-sideCount">{recentTop.length}</span>
+                  </div>
+                  {recentTop.length > prefs.recentLimit && prefs.recentLimit > 0 && (
+                    <button type="button" className="dsv-sideTextBtn" onClick={() => setExpandedRecent((prev) => !prev)}>
+                      {t(expandedRecent ? 'side.less' : 'side.more')}
+                    </button>
+                  )}
+                </div>
+                {recentRowsView.map((row) => renderRow(row))}
+              </section>
+            )}
+
+            {prefs.archivedFilter !== 'only' && groups.map((group, index) => renderGroup(group, index))}
 
             {(prefs.archivedFilter === 'show' || prefs.archivedFilter === 'only') && (
               <section className="dsv-sideGroup" aria-label={t('side.archived')}>

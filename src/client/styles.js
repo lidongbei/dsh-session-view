@@ -917,14 +917,13 @@ export const STYLES = `
   cursor: pointer;
 }
 .dsv-sideMore:hover { color: var(--dsw-alias-label-secondary); }
-.dsv-sideEmpty,
-.dsv-sideEmptyWorkspace {
-  padding: 6px 8px;
+.dsv-sideEmpty {
+  padding: 16px 12px;
   color: var(--dsw-alias-label-tertiary);
   font-size: 13px;
   line-height: 20px;
+  text-align: center;
 }
-.dsv-sideEmpty { padding: 16px 12px; text-align: center; }
 .dsv-sideHint { margin: 2px 0 0; color: var(--dsw-alias-label-tertiary); font-size: 12px; line-height: 1.4; }
 .dsv-sideHit {
   display: flex;

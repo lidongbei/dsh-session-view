@@ -129,6 +129,15 @@ export function LayoutIcon({ size = 14 }) {
   );
 }
 
+export function ClockIcon({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false">
+      <circle cx="8" cy="8" r="5.5" stroke="currentColor" strokeWidth="1.2" />
+      <path d="M8 4.8V8l2.2 1.3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 export function FolderIcon({ size = 14 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false">

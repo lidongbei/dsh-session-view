@@ -73,6 +73,8 @@ const props = {
   openPanel: () => {},
 };
 globalThis.__DSV_PANE_HTML = renderToStaticMarkup(React.createElement(SidebarWorkspacePane, props));
+setPrefs({ showRecent: false, showPinned: false, showActive: false });
+globalThis.__DSV_PANE_HTML_HIDDEN = renderToStaticMarkup(React.createElement(SidebarWorkspacePane, props));
 resetPrefs();
 `;
 
@@ -108,10 +110,23 @@ test('SidebarWorkspacePane renders pinned and a limited active group', async () 
     assert.match(html, /data-status="pending"/);
     assert.match(html, /data-status="done"/);
     assert.ok(!html.includes('Sub task'), 'subagent row must not be rendered');
-    assert.ok(!html.includes('Empty workspace'), 'empty workspace must not be rendered');
-    assert.ok(!html.includes('暂无会话'), 'empty-workspace placeholder must not be rendered');
+    assert.ok(html.includes('Empty workspace'), 'empty workspace must stay visible');
+    assert.ok(!html.includes('暂无会话'), 'empty-workspace hint must not be rendered');
+    assert.ok(html.includes('最近会话'), 'missing recent group');
+    const recent = html.match(/<section class="dsv-sideGroup" aria-label="最近会话">([\s\S]*?)<\/section>/)?.[1] ?? '';
+    assert.ok(recent.includes('Task idle'), 'recent group must contain the remaining recent session');
+    const app = html.match(/<section class="dsv-sideGroup" aria-label="App">([\s\S]*?)<\/section>/)?.[1] ?? '';
+    assert.ok(app.includes('Task run1'), 'active session must also appear under its workspace');
+    assert.ok(app.includes('Task run3'), 'workspace must keep all sessions even when active is limited');
     assert.ok(html.includes('aria-label="会话管理"'), 'missing manage-sessions button');
     assert.ok(!html.includes('data-dsv-settings-toggle'), 'sidebar settings trigger must be gone');
+
+    const hidden = globalThis.__DSV_PANE_HTML_HIDDEN;
+    delete globalThis.__DSV_PANE_HTML_HIDDEN;
+    assert.ok(!hidden.includes('<section class="dsv-sideGroup" aria-label="活跃会话"'), 'active group toggle did not hide the section');
+    assert.ok(!hidden.includes('<section class="dsv-sideGroup" aria-label="置顶"'), 'pinned group toggle did not hide the section');
+    assert.ok(!hidden.includes('<section class="dsv-sideGroup" aria-label="最近会话"'), 'recent group toggle did not hide the section');
+    assert.ok(hidden.includes('aria-label="App"'), 'workspaces must remain when shortcut groups are hidden');
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

@@ -46,6 +46,18 @@ export function SessionViewSettings({ t }) {
         </label>
 
         <label className="dsv-field">
+          <span className="dsv-fieldLabel">{t('settings.recentLimit')}</span>
+          <input
+            className="dsv-input dsv-number"
+            type="number"
+            min="0"
+            max="50"
+            value={prefs.recentLimit}
+            onChange={(event) => setPrefs({ recentLimit: event.target.value })}
+          />
+        </label>
+
+        <label className="dsv-field">
           <span className="dsv-fieldLabel">{t('settings.workspaceLimit')}</span>
           <input
             className="dsv-input dsv-number"
@@ -98,19 +110,37 @@ export function SessionViewSettings({ t }) {
       <label className="dsv-toggleRow">
         <input
           type="checkbox"
-          checked={prefs.showSubagents}
-          onChange={(event) => setPrefs({ showSubagents: event.target.checked })}
+          checked={prefs.showRecent}
+          onChange={(event) => setPrefs({ showRecent: event.target.checked })}
         />
-        <span>{t('settings.showSubagents')}</span>
+        <span>{t('settings.showRecent')}</span>
       </label>
 
       <label className="dsv-toggleRow">
         <input
           type="checkbox"
-          checked={prefs.showEmptyWorkspaces}
-          onChange={(event) => setPrefs({ showEmptyWorkspaces: event.target.checked })}
+          checked={prefs.showPinned}
+          onChange={(event) => setPrefs({ showPinned: event.target.checked })}
         />
-        <span>{t('settings.showEmptyWorkspaces')}</span>
+        <span>{t('settings.showPinned')}</span>
+      </label>
+
+      <label className="dsv-toggleRow">
+        <input
+          type="checkbox"
+          checked={prefs.showActive}
+          onChange={(event) => setPrefs({ showActive: event.target.checked })}
+        />
+        <span>{t('settings.showActive')}</span>
+      </label>
+
+      <label className="dsv-toggleRow">
+        <input
+          type="checkbox"
+          checked={prefs.showSubagents}
+          onChange={(event) => setPrefs({ showSubagents: event.target.checked })}
+        />
+        <span>{t('settings.showSubagents')}</span>
       </label>
 
       <label className="dsv-toggleRow">
