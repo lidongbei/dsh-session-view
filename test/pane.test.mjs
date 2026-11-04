@@ -120,6 +120,8 @@ test('SidebarWorkspacePane renders pinned and a limited active group', async () 
     assert.ok(app.includes('Task run3'), 'workspace must keep all sessions even when active is limited');
     assert.ok(html.includes('aria-label="会话管理"'), 'missing manage-sessions button');
     assert.ok(!html.includes('data-dsv-settings-toggle'), 'sidebar settings trigger must be gone');
+    assert.ok(!html.includes('dsv-sideFolder'), 'workspace folder icon must be gone');
+    assert.ok(html.includes('dsv-sideChevron'), 'workspace disclosure chevron missing');
 
     const hidden = globalThis.__DSV_PANE_HTML_HIDDEN;
     delete globalThis.__DSV_PANE_HTML_HIDDEN;

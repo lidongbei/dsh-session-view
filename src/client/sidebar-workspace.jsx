@@ -811,9 +811,6 @@ export function SidebarWorkspacePane({
             <span className="dsv-sideChevron" data-collapsed={collapsed}>
               {collapsed ? <ChevronRightIcon size={10} /> : <ChevronDownIcon size={10} />}
             </span>
-            <span className="dsv-sideFolder">
-              <FolderIcon size={14} />
-            </span>
             <span className="dsv-sideGroupTitle">{workspaceLabel(workspace)}</span>
             <span className="dsv-sideCount">{group.rows.length}</span>
           </button>
