@@ -1,83 +1,26 @@
 import { createPortal } from 'react-dom';
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
-import {
-  annotateRows,
-  buildCandidates,
-  buildRows,
-  splitSections,
-  topRows,
-} from './logic.js';
-import { ChevronRightIcon, PinIcon, SessionViewIcon } from './icons.jsx';
+import { useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { SessionViewIcon } from './icons.jsx';
 import { STYLES } from './styles.js';
+import { SidebarWorkspacePane } from './sidebar-workspace.jsx';
+import { getPrefs, subscribePrefs } from './prefs.js';
 
-const COLLAPSE_KEY = 'dsh-session-view.board.collapsed';
 const NARROW_WIDTH = 150;
 
-function readCollapsed() {
-  try {
-    return globalThis.localStorage?.getItem(COLLAPSE_KEY) === '1';
-  } catch {
-    return false;
-  }
-}
-
-function writeCollapsed(value) {
-  try {
-    globalThis.localStorage?.setItem(COLLAPSE_KEY, value ? '1' : '0');
-  } catch {
-    /* private mode / quota: the board simply forgets the preference */
-  }
-}
-
-function BoardGroup({ t, labelKey, tone, rows, openSession, pinned, pinnedSet, togglePin }) {
-  if (rows.length === 0) return null;
-  return (
-    <div className="dsv-boardGroup">
-      <div className="dsv-boardGroupTitle">
-        {tone && <span className="dsv-dot" data-status={tone} aria-hidden="true" />}
-        <span>{t(labelKey)}</span>
-        <span>{rows.length}</span>
-      </div>
-      {rows.map((row) => {
-        const isPinned = pinnedSet?.has(row.session.id) ?? false;
-        return (
-          <div key={row.session.id} className="dsv-boardRow">
-            <button
-              type="button"
-              className="dsv-boardOpen"
-              onClick={() => openSession(row.session.id)}
-              title={row.title}
-            >
-              <span className="dsv-dot" data-status={row.status} aria-hidden="true" />
-              <span className="dsv-boardRowTitle">{row.title}</span>
-            </button>
-            {togglePin && (
-              <button
-                type="button"
-                className="dsv-boardAction"
-                aria-pressed={isPinned}
-                aria-label={t(isPinned ? 'action.unpin' : 'action.pin')}
-                title={t(isPinned ? 'action.unpin' : 'action.pin')}
-                onClick={() => togglePin(row)}
-              >
-                <PinIcon size={11} />
-              </button>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
+function usePrefs() {
+  return useSyncExternalStore(subscribePrefs, getPrefs, getPrefs);
 }
 
 /**
- * Sidebar mini-board.
+ * Left-sidebar session workspace.
  *
- * The left sidebar exposes `sidebar.panellist` for icon entries only, so a
- * slot cannot render body content next to the workspace list. This component
- * keeps the native list untouched and portals a small board into the sidebar
- * DOM, directly after the panel-icon nav. It hides itself when the sidebar is
- * collapsed to the icon rail.
+ * The sidebar exposes `sidebar.panellist` for icon entries only, so the pane
+ * cannot live in a slot next to the workspace list. Instead this component
+ * anchors on the panellist icon, portals a full pane after the icon nav, and
+ * hides the native `.regionArea` while the session mode is active. The native
+ * browser stays mounted, so switching back is instant and lossless. When the
+ * sidebar is collapsed to the icon rail, the native region is restored and
+ * the pane is not rendered.
  */
 export function SidebarBoardIcon({
   size = 16,
@@ -85,24 +28,23 @@ export function SidebarBoardIcon({
   useSessions,
   useSessionStatus,
   useWorkspaces,
-  openSession,
-  openPanel,
-  pinSession,
-  unpinSession,
+  ...paneProps
 }) {
-  const sessions = useSessions?.((state) => state);
-  const statuses = useSessionStatus?.((state) => state);
-  const workspaces = useWorkspaces?.((state) => state);
-
+  const prefs = usePrefs();
   const anchorRef = useRef(null);
+  const regionRef = useRef(null);
   const [host, setHost] = useState(null);
   const [narrow, setNarrow] = useState(false);
-  const [collapsed, setCollapsed] = useState(readCollapsed);
 
   useLayoutEffect(() => {
     const anchor = anchorRef.current;
     const nav = anchor?.closest?.('nav');
     if (!nav || !nav.parentElement) return undefined;
+
+    // Capture the native workspace region before inserting the portal host,
+    // because the host immediately becomes nav.nextElementSibling.
+    const region = nav.nextElementSibling;
+    regionRef.current = region;
 
     const node = document.createElement('div');
     node.className = 'dsv-boardHost';
@@ -120,155 +62,49 @@ export function SidebarBoardIcon({
 
     return () => {
       observer?.disconnect();
+      if (region) region.style.display = '';
       node.remove();
+      regionRef.current = null;
       setHost(null);
     };
   }, []);
 
-  const rows = useMemo(() => {
-    if (!sessions || !workspaces) return [];
-    const candidates = buildCandidates(sessions, workspaces.archivedSessionIds);
-    const built = buildRows(candidates, sessions.byId ?? {}, workspaces);
-    return annotateRows(built, statuses);
-  }, [sessions, statuses, workspaces]);
+  const active = prefs.mode === 'session' && !narrow && host !== null;
 
-  const sections = useMemo(
-    () => splitSections(rows, workspaces?.pinnedSessionIds),
-    [rows, workspaces?.pinnedSessionIds],
-  );
-
-  const pinnedSet = useMemo(
-    () => new Set(workspaces?.pinnedSessionIds ?? []),
-    [workspaces?.pinnedSessionIds],
-  );
-
-  const togglePin = async (row) => {
-    const id = row.session.id;
-    try {
-      await (pinnedSet.has(id) ? unpinSession(id) : pinSession(id));
-    } catch {
-      /* the panel is the authoritative surface for error details */
-    }
-  };
-
-  const pinned = topRows(sections.pinned, 3);
-  const running = topRows(sections.running, 2);
-  const pending = topRows(sections.pending, 2);
-  const done = topRows(sections.done, 2);
-  const total = pinned.length + running.length + pending.length + done.length;
-
-  const toggle = () => {
-    setCollapsed((prev) => {
-      writeCollapsed(!prev);
-      return !prev;
-    });
-  };
+  useLayoutEffect(() => {
+    const region = regionRef.current;
+    if (host) host.hidden = !active;
+    if (!region) return undefined;
+    region.style.display = active ? 'none' : '';
+    return () => {
+      region.style.display = '';
+    };
+  }, [active, host]);
 
   return (
     <>
       <span ref={anchorRef} className="dsv-panelIcon">
         <SessionViewIcon size={size} />
       </span>
-      {host &&
-        !narrow &&
+      {active &&
         createPortal(
           <div
-            className="dsv-board"
+            className="dsv-workarea"
             onClick={(event) => {
-              // The board is portaled out of the panellist row's DOM, but React
+              // The pane is portaled out of the panellist row's DOM, but React
               // events still bubble through that row. Without this stop the
-              // row's select-panel handler would immediately re-open the panel.
+              // row's select-panel handler would immediately open the panel.
               event.stopPropagation();
             }}
           >
             <style>{STYLES}</style>
-            <button
-              type="button"
-              className="dsv-boardHead"
-              aria-expanded={!collapsed}
-              aria-label={t(collapsed ? 'board.expand' : 'board.collapse')}
-              onClick={toggle}
-            >
-              <span
-                className="dsv-boardChevron"
-                data-collapsed={collapsed}
-                aria-hidden="true"
-              >
-                <ChevronRightIcon size={11} />
-              </span>
-              <span className="dsv-boardTitle">{t('board.title')}</span>
-              {sections.running.length > 0 && (
-                <span className="dsv-boardBadge">
-                  <span className="dsv-dot" data-status="running" aria-hidden="true" />
-                  {sections.running.length}
-                </span>
-              )}
-              {sections.pending.length > 0 && (
-                <span className="dsv-boardBadge">
-                  <span className="dsv-dot" data-status="pending" aria-hidden="true" />
-                  {sections.pending.length}
-                </span>
-              )}
-              {sections.done.length > 0 && (
-                <span className="dsv-boardBadge">
-                  <span className="dsv-dot" data-status="done" aria-hidden="true" />
-                  {sections.done.length}
-                </span>
-              )}
-            </button>
-
-            {!collapsed && (
-              <>
-                <div className="dsv-boardBody">
-                  {total === 0 ? (
-                    <div className="dsv-boardEmpty">{t('board.empty')}</div>
-                  ) : (
-                    <>
-                      <BoardGroup
-                        t={t}
-                        labelKey="section.pinned"
-                        rows={pinned}
-                        openSession={openSession}
-                        pinned
-                        pinnedSet={pinnedSet}
-                        togglePin={togglePin}
-                      />
-                      <BoardGroup
-                        t={t}
-                        labelKey="section.running"
-                        tone="running"
-                        rows={running}
-                        openSession={openSession}
-                        pinnedSet={pinnedSet}
-                        togglePin={togglePin}
-                      />
-                      <BoardGroup
-                        t={t}
-                        labelKey="section.pending"
-                        tone="pending"
-                        rows={pending}
-                        openSession={openSession}
-                        pinnedSet={pinnedSet}
-                        togglePin={togglePin}
-                      />
-                      <BoardGroup
-                        t={t}
-                        labelKey="section.done"
-                        tone="done"
-                        rows={done}
-                        openSession={openSession}
-                        pinnedSet={pinnedSet}
-                        togglePin={togglePin}
-                      />
-                    </>
-                  )}
-                </div>
-                <button type="button" className="dsv-boardMore" onClick={openPanel}>
-                  {t('board.more')}
-                  <ChevronRightIcon size={11} />
-                </button>
-              </>
-            )}
+            <SidebarWorkspacePane
+              t={t}
+              useSessions={useSessions}
+              useSessionStatus={useSessionStatus}
+              useWorkspaces={useWorkspaces}
+              {...paneProps}
+            />
           </div>,
           host,
         )}

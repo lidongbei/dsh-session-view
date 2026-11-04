@@ -1,0 +1,107 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { build } from 'esbuild';
+
+const root = resolve(import.meta.dirname, '..');
+
+const fixture = `
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { SidebarWorkspacePane } from ${JSON.stringify(resolve(root, 'src/client/sidebar-workspace.jsx'))};
+import { zh } from ${JSON.stringify(resolve(root, 'src/client/locales.js'))};
+import { resetPrefs, setPrefs } from ${JSON.stringify(resolve(root, 'src/client/prefs.js'))};
+
+const t = (key, params) => {
+  const template = zh[key] ?? key;
+  return params ? template.replace(/\\\\{(\\\\w+)\\\\}/g, (match, name) => (name in params ? String(params[name]) : match)) : template;
+};
+
+const ids = ['run1', 'run2', 'run3', 'wait', 'done', 'idle', 'pinned'];
+const byId = Object.fromEntries(ids.map((id, index) => [id, {
+  id,
+  title: id,
+  displayTitle: id === 'pinned' ? 'Pinned task' : 'Task ' + id,
+  running: id.startsWith('run'),
+  blank: false,
+  updatedAt: 1000 - index,
+}]));
+const sessions = { ids, byId, phase: 'ready', projectionsBySession: {} };
+const statuses = new Map([
+  ['run1', { running: true, completionUnread: false }],
+  ['run2', { running: true, completionUnread: false }],
+  ['run3', { running: true, completionUnread: false }],
+  ['wait', { running: false, completionUnread: false, pendingInteraction: { kind: 'question' } }],
+  ['done', { running: false, completionUnread: true }],
+  ['idle', { running: false, completionUnread: false }],
+  ['pinned', { running: false, completionUnread: false }],
+]);
+const workspaces = {
+  items: [{ workspaceId: 'w1', title: 'App', path: 'C:/work/app', sessionIds: ids }],
+  archivedSessionIds: [],
+  pinnedSessionIds: ['pinned'],
+  state: 'idle',
+  phase: 'ready',
+};
+
+setPrefs({ activeLimit: 2 });
+const props = {
+  t,
+  useSessions: (selector) => selector(sessions),
+  useSessionStatus: (selector) => selector(statuses),
+  useWorkspaces: (selector) => selector(workspaces),
+  openSession: () => {},
+  pinSession: () => {},
+  unpinSession: () => {},
+  archiveSession: () => {},
+  unarchiveSession: () => {},
+  startSession: () => {},
+  forkSession: () => {},
+  renameSession: () => {},
+  renameWorkspace: () => {},
+  deleteWorkspace: () => {},
+  createWorkspace: () => {},
+  pickDirectory: () => {},
+  searchSessions: () => {},
+};
+globalThis.__DSV_PANE_HTML = renderToStaticMarkup(React.createElement(SidebarWorkspacePane, props));
+resetPrefs();
+`;
+
+test('SidebarWorkspacePane renders pinned and a limited active group', async () => {
+  const dir = await mkdtemp(join(root, 'test', '.pane-'));
+  const outfile = join(dir, 'fixture.mjs');
+  try {
+    await build({
+      stdin: { contents: fixture, resolveDir: root, sourcefile: 'pane.fixture.jsx', loader: 'jsx' },
+      outfile,
+      bundle: true,
+      format: 'esm',
+      platform: 'node',
+      jsx: 'automatic',
+      external: ['react', 'react/jsx-runtime', 'react-dom', 'react-dom/server'],
+      legalComments: 'none',
+      logLevel: 'silent',
+    });
+
+    await import(pathToFileURL(outfile).href);
+    const html = globalThis.__DSV_PANE_HTML;
+    delete globalThis.__DSV_PANE_HTML;
+    assert.equal(typeof html, 'string');
+
+    assert.ok(html.includes('活跃会话'), 'missing active group heading');
+    assert.ok(html.includes('置顶'), 'missing pinned heading');
+    assert.ok(html.includes('Pinned task'), 'missing pinned row');
+    const active = html.match(/<section class="dsv-sideGroup" aria-label="活跃会话">([\s\S]*?)<\/section>/)?.[1] ?? '';
+    assert.ok(active.includes('Task run1') && active.includes('Task run2'), 'missing first two active rows');
+    assert.ok(!active.includes('Task run3'), 'active limit was not applied');
+    assert.ok(active.includes('更多'), 'missing show-more control');
+    assert.match(active, /data-status="running"/);
+    assert.match(html, /data-status="pending"/);
+    assert.match(html, /data-status="done"/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});

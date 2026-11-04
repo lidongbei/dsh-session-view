@@ -30,7 +30,7 @@ test('built client bundle registers the panel and forwards openSession', async (
     throw new Error(`unexpected require: ${id}`);
   });
   assert.equal(typeof exported.apply, 'function');
-  assert.deepEqual([...exported.inject], ['slots', 'locale', 'uiWorkspace', 'layout']);
+  assert.deepEqual([...exported.inject], ['slots', 'locale', 'uiWorkspace', 'layout', 'sessions', 'workspaces']);
 
   const registrations = [];
   const injected = [];
@@ -69,7 +69,7 @@ test('built client bundle registers the panel and forwards openSession', async (
 
   exported.apply(ctx);
 
-  assert.deepEqual(injected, ['main', 'sidebar.panellist']);
+  assert.deepEqual(injected, ['main', 'sidebar.panellist', 'sidebar.footer.action']);
   assert.equal(registered.namespace, 'dsh-session-view');
   assert.ok(registered.dictionaries.zh.panel);
   assert.ok(registered.dictionaries.en.panel);
@@ -88,4 +88,16 @@ test('built client bundle registers the panel and forwards openSession', async (
   const injectedProps = main.options.inject();
   injectedProps.openSession('session-1');
   assert.equal(opened, 'session-1');
+
+  const footer = registrations.find((item) => item.options.name === 'sidebar.footer.action');
+  assert.ok(footer);
+  assert.equal(footer.options.id, 'dsh-session-view-mode');
+  assert.equal(footer.options.locale, 'dsh-session-view');
+
+  const paneProps = panel.options.inject();
+  assert.equal(typeof paneProps.startSession, 'function');
+  assert.equal(typeof paneProps.renameSession, 'function');
+  assert.equal(typeof paneProps.searchSessions, 'function');
+  assert.equal(typeof paneProps.createWorkspace, 'function');
+  assert.equal(typeof paneProps.openPanel, 'function');
 });

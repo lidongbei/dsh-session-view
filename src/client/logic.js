@@ -360,3 +360,134 @@ export function archivedRows(sessions, archivedIds) {
   }
   return rows.sort((a, b) => (b.session.updatedAt ?? 0) - (a.session.updatedAt ?? 0));
 }
+
+/** Top-level rows only: active children are represented by their parent. */
+export function topLevelRows(rows) {
+  return rows.filter((row) => (row.depth ?? 0) === 0);
+}
+
+/**
+ * Sessions worth surfacing in the sticky "active" group: top-level rows that
+ * are running, waiting for the user, or have a running descendant.
+ */
+export function activeRows(rows) {
+  return topLevelRows(rows).filter(
+    (row) => row.status === 'running' || row.status === 'pending' || (row.runningChildren ?? 0) > 0,
+  );
+}
+
+/** Keep at most `limit` rows; 0 means unlimited. */
+export function limitRows(rows, limit) {
+  if (!Number.isFinite(limit) || limit <= 0) return rows;
+  return rows.slice(0, limit);
+}
+
+function normalizePath(value) {
+  return String(value ?? '')
+    .replace(/[\\/]+/g, '/')
+    .replace(/\/+$/, '')
+    .toLowerCase();
+}
+
+function isUnder(parentPath, childPath) {
+  if (!parentPath || !childPath || parentPath === childPath) return false;
+  return childPath.startsWith(`${parentPath}/`);
+}
+
+/**
+ * Order workspaces as a tree: every parent immediately precedes its children.
+ * Parents are the longest existing workspace path that prefixes the child.
+ */
+export function workspaceTree(workspaces) {
+  const items = workspaces?.items ?? [];
+  const entries = items.map((workspace, index) => ({
+    workspace,
+    index,
+    path: normalizePath(workspace?.path),
+  }));
+  const parents = new Map();
+  const children = new Map();
+  for (const entry of entries) {
+    let parent = null;
+    for (const candidate of entries) {
+      if (candidate === entry) continue;
+      if (!isUnder(candidate.path, entry.path)) continue;
+      if (!parent || candidate.path.length > parent.path.length) parent = candidate;
+    }
+    parents.set(entry.workspace.workspaceId, parent);
+    if (parent) {
+      const list = children.get(parent.workspace.workspaceId) ?? [];
+      list.push(entry);
+      children.set(parent.workspace.workspaceId, list);
+    }
+  }
+  const ordered = [];
+  const visit = (entry, depth) => {
+    ordered.push({ workspace: entry.workspace, depth });
+    for (const child of children.get(entry.workspace.workspaceId) ?? []) visit(child, depth + 1);
+  };
+  for (const entry of entries) {
+    if (!parents.get(entry.workspace.workspaceId)) visit(entry, 0);
+  }
+  for (const entry of entries) {
+    if (!ordered.some((item) => item.workspace === entry.workspace)) visit(entry, 0);
+  }
+  return ordered;
+}
+
+/** Key under which a row's manual position is stored. */
+export function orderKey(row, layout) {
+  if (layout === 'flat') return '__flat';
+  return row.workspace?.workspaceId ?? '__none';
+}
+
+/**
+ * Group rows by workspace while preserving family order. Pinned rows are
+ * removed by the caller. Workspaces without rows are returned too so the pane
+ * can still offer "new session".
+ */
+export function groupByWorkspace(rows, workspaces, nest = true) {
+  const byId = new Map();
+  for (const row of rows) {
+    const key = row.workspace?.workspaceId ?? '__none';
+    const list = byId.get(key) ?? [];
+    list.push(row);
+    byId.set(key, list);
+  }
+  const tree = nest ? workspaceTree(workspaces) : (workspaces?.items ?? []).map((workspace) => ({ workspace, depth: 0 }));
+  const groups = tree.map(({ workspace, depth }) => ({
+    workspace,
+    depth,
+    rows: byId.get(workspace.workspaceId) ?? [],
+  }));
+  const ungrouped = byId.get('__none') ?? [];
+  if (ungrouped.length > 0) groups.push({ workspace: null, depth: 0, rows: ungrouped });
+  const known = new Set(groups.map((group) => group.workspace?.workspaceId ?? '__none'));
+  for (const [key, list] of byId) {
+    if (known.has(key)) continue;
+    groups.push({ workspace: null, depth: 0, rows: list });
+  }
+  return groups;
+}
+
+/** Apply a saved id order to rows; unknown ids keep their relative position. */
+export function applyManualOrder(rows, order) {
+  if (!Array.isArray(order) || order.length === 0) return rows;
+  const index = new Map(order.map((id, position) => [id, position]));
+  return [...rows].sort((a, b) => {
+    const ai = index.get(a.session.id);
+    const bi = index.get(b.session.id);
+    if (ai === undefined && bi === undefined) return 0;
+    if (ai === undefined) return 1;
+    if (bi === undefined) return -1;
+    return ai - bi;
+  });
+}
+
+/** Move one id before another inside a saved order, returning a new array. */
+export function moveId(order, dragId, targetId) {
+  const base = Array.isArray(order) ? order.filter((id) => id !== dragId) : [];
+  const target = base.indexOf(targetId);
+  const next = target < 0 ? [...base, dragId] : [...base.slice(0, target), dragId, ...base.slice(target)];
+  return next;
+}

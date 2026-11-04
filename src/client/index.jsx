@@ -1,17 +1,55 @@
 import { SessionView } from './session-view.jsx';
 import { SidebarBoardIcon } from './sidebar-board.jsx';
+import { SidebarModeToggle } from './sidebar-workspace.jsx';
 import { en, zh } from './locales.js';
 
 /** Stable key shared by the sidebar entry and the main panel. */
 export const PANEL_ID = 'dsh-session-view';
 const NS = PANEL_ID;
 
-/** Host services needed by this UI-only contribution. */
-export const inject = ['slots', 'locale', 'uiWorkspace', 'layout'];
+/** Services needed by this UI contribution. */
+export const inject = ['slots', 'locale', 'uiWorkspace', 'layout', 'sessions', 'workspaces'];
 
 export function apply(ctx) {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'dsh-session-view: dictionaries');
   const t = ctx.locale.bind(NS);
+  const ui = ctx.uiWorkspace;
+
+  const renameSession = async (sessionId, title) => {
+    const result = await ctx.sessions.using(
+      sessionId,
+      { source: 'workspaceOperation' },
+      (reference) => reference.binding.session.rename(title),
+    );
+    if (!result.ok) throw new Error(result.error.message);
+  };
+
+  const searchSessions = async (query, signal) => {
+    const result = await ctx.sessions.search(query, signal);
+    if (!result.ok) throw new Error(result.error.message);
+    return result.value;
+  };
+
+  const workspaceActions = {
+    renameWorkspace: (workspaceId, title) => ctx.workspaces.rename(workspaceId, title),
+    deleteWorkspace: (workspaceId) => ctx.workspaces.delete(workspaceId),
+    createWorkspace: (options) => ctx.workspaces.create(options),
+  };
+
+  const paneActions = {
+    openSession: (target) => ui.openSession(target),
+    openWorkspace: (workspaceId, options) => ui.openWorkspace(workspaceId, options),
+    pinSession: (sessionId) => ui.pinSession(sessionId),
+    unpinSession: (sessionId) => ui.unpinSession(sessionId),
+    archiveSession: (sessionId, options) => ui.archiveSession(sessionId, options),
+    unarchiveSession: (sessionId) => ui.unarchiveSession(sessionId),
+    startSession: (workspaceId, options) => ui.startSession(workspaceId, options),
+    forkSession: (sessionId, onCreated, options) => ui.forkSession(sessionId, onCreated, options),
+    pickDirectory: () => ui.pickDirectory(),
+    renameSession,
+    searchSessions,
+    ...workspaceActions,
+  };
 
   ctx.slots.inject('main', () =>
     ctx.slots.register(
@@ -20,11 +58,11 @@ export function apply(ctx) {
         key: PANEL_ID,
         locale: NS,
         inject: () => ({
-          openSession: (target) => ctx.uiWorkspace.openSession(target),
-          pinSession: (sessionId) => ctx.uiWorkspace.pinSession(sessionId),
-          unpinSession: (sessionId) => ctx.uiWorkspace.unpinSession(sessionId),
-          archiveSession: (sessionId) => ctx.uiWorkspace.archiveSession(sessionId),
-          unarchiveSession: (sessionId) => ctx.uiWorkspace.unarchiveSession(sessionId),
+          openSession: paneActions.openSession,
+          pinSession: paneActions.pinSession,
+          unpinSession: paneActions.unpinSession,
+          archiveSession: paneActions.archiveSession,
+          unarchiveSession: paneActions.unarchiveSession,
         }),
       },
       SessionView,
@@ -40,13 +78,23 @@ export function apply(ctx) {
         locale: NS,
         label: () => t('panel'),
         inject: () => ({
-          openSession: (target) => ctx.uiWorkspace.openSession(target),
+          ...paneActions,
           openPanel: () => ctx.layout.selectPanel(PANEL_ID),
-          pinSession: (sessionId) => ctx.uiWorkspace.pinSession(sessionId),
-          unpinSession: (sessionId) => ctx.uiWorkspace.unpinSession(sessionId),
         }),
       },
       SidebarBoardIcon,
+    ),
+  );
+
+  ctx.slots.inject('sidebar.footer.action', () =>
+    ctx.slots.register(
+      {
+        name: 'sidebar.footer.action',
+        id: `${PANEL_ID}-mode`,
+        locale: NS,
+        order: 10,
+      },
+      SidebarModeToggle,
     ),
   );
 }

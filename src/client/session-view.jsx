@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import {
   STATUS_LIST,
   annotateRows,
@@ -16,6 +16,7 @@ import {
   workspaceLabel,
 } from './logic.js';
 import { addToTrash, fetchTrash, purgeTrash, restoreTrash } from './api.js';
+import { getPrefs, resetPrefs, setPrefs, subscribePrefs } from './prefs.js';
 import { STYLES } from './styles.js';
 import {
   ArchiveIcon,
@@ -27,7 +28,7 @@ import {
 } from './icons.jsx';
 
 const ALL = 'all';
-const TABS = ['active', 'archived', 'trash'];
+const TABS = ['active', 'archived', 'trash', 'settings'];
 
 const CONFIRM_COPY = {
   archive: { title: 'confirm.archive.title', body: 'confirm.archive.body', tone: 'normal' },
@@ -65,6 +66,7 @@ export function SessionView({
   const sessions = useSessions((state) => state);
   const statuses = useSessionStatus((state) => state);
   const workspaces = useWorkspaces((state) => state);
+  const prefs = useSyncExternalStore(subscribePrefs, getPrefs, getPrefs);
 
   const [tab, setTab] = useState('active');
   const [query, setQuery] = useState('');
@@ -504,6 +506,7 @@ export function SessionView({
     active: annotated.length,
     archived: archived.length,
     trash: trash.items.length,
+    settings: 0,
   };
 
   const emptyNode = (() => {
@@ -542,6 +545,110 @@ export function SessionView({
 
   const confirmCopy = confirm ? CONFIRM_COPY[confirm.kind] : null;
 
+  const settingsNode = (
+    <section className="dsv-settings" aria-label={t('settings.title')}>
+      <h2 className="dsv-settingsTitle">{t('settings.title')}</h2>
+      <div className="dsv-settingsGrid">
+        <label className="dsv-field">
+          <span className="dsv-fieldLabel">{t('settings.mode')}</span>
+          <select
+            className="dsv-select"
+            value={prefs.mode}
+            onChange={(event) => setPrefs({ mode: event.target.value })}
+          >
+            <option value="session">{t('settings.mode.session')}</option>
+            <option value="native">{t('settings.mode.native')}</option>
+          </select>
+        </label>
+
+        <label className="dsv-field">
+          <span className="dsv-fieldLabel">{t('settings.activeLimit')}</span>
+          <input
+            className="dsv-input dsv-number"
+            type="number"
+            min="0"
+            max="50"
+            value={prefs.activeLimit}
+            onChange={(event) => setPrefs({ activeLimit: event.target.value })}
+          />
+        </label>
+
+        <label className="dsv-field">
+          <span className="dsv-fieldLabel">{t('settings.workspaceLimit')}</span>
+          <input
+            className="dsv-input dsv-number"
+            type="number"
+            min="0"
+            max="50"
+            value={prefs.workspaceLimit}
+            onChange={(event) => setPrefs({ workspaceLimit: event.target.value })}
+          />
+        </label>
+
+        <label className="dsv-field">
+          <span className="dsv-fieldLabel">{t('settings.layout')}</span>
+          <select
+            className="dsv-select"
+            value={prefs.layout}
+            onChange={(event) => setPrefs({ layout: event.target.value })}
+          >
+            <option value="grouped">{t('settings.layout.grouped')}</option>
+            <option value="flat">{t('settings.layout.flat')}</option>
+          </select>
+        </label>
+
+        <label className="dsv-field">
+          <span className="dsv-fieldLabel">{t('settings.sort')}</span>
+          <select
+            className="dsv-select"
+            value={prefs.sort}
+            onChange={(event) => setPrefs({ sort: event.target.value })}
+          >
+            <option value="updated">{t('settings.sort.updated')}</option>
+            <option value="manual">{t('settings.sort.manual')}</option>
+          </select>
+        </label>
+
+        <label className="dsv-field">
+          <span className="dsv-fieldLabel">{t('settings.archived')}</span>
+          <select
+            className="dsv-select"
+            value={prefs.archivedFilter}
+            onChange={(event) => setPrefs({ archivedFilter: event.target.value })}
+          >
+            <option value="hide">{t('settings.archived.hide')}</option>
+            <option value="show">{t('settings.archived.show')}</option>
+            <option value="only">{t('settings.archived.only')}</option>
+          </select>
+        </label>
+      </div>
+
+      <label className="dsv-toggleRow">
+        <input
+          type="checkbox"
+          checked={prefs.showIdle}
+          onChange={(event) => setPrefs({ showIdle: event.target.checked })}
+        />
+        <span>{t('settings.showIdle')}</span>
+      </label>
+
+      <label className="dsv-toggleRow">
+        <input
+          type="checkbox"
+          checked={prefs.nestWorkspaces}
+          onChange={(event) => setPrefs({ nestWorkspaces: event.target.checked })}
+        />
+        <span>{t('settings.nest')}</span>
+      </label>
+
+      <p className="dsv-hint">{t('settings.hint')}</p>
+
+      <button type="button" className="dsv-btn" onClick={() => resetPrefs()}>
+        {t('settings.reset')}
+      </button>
+    </section>
+  );
+
   return (
     <div className="dsv-page" aria-busy={busy || undefined}>
       <style>{STYLES}</style>
@@ -551,22 +658,26 @@ export function SessionView({
             <h1 className="dsv-title">{t('title')}</h1>
             <p className="dsv-subtitle">{t('subtitle')}</p>
           </div>
-          <span className="dsv-total" aria-live="polite">
-            {t('counts.summary', { n: tabCounts[tab] })}
-          </span>
-          <div className="dsv-headActions">
-            <button
-              type="button"
-              className="dsv-btn"
-              aria-pressed={manage}
-              onClick={() => {
-                setManage((prev) => !prev);
-                setSelected([]);
-              }}
-            >
-              {t(manage ? 'manage.done' : 'manage.start')}
-            </button>
-          </div>
+          {tab !== 'settings' && (
+            <span className="dsv-total" aria-live="polite">
+              {t('counts.summary', { n: tabCounts[tab] })}
+            </span>
+          )}
+          {tab !== 'settings' && (
+            <div className="dsv-headActions">
+              <button
+                type="button"
+                className="dsv-btn"
+                aria-pressed={manage}
+                onClick={() => {
+                  setManage((prev) => !prev);
+                  setSelected([]);
+                }}
+              >
+                {t(manage ? 'manage.done' : 'manage.start')}
+              </button>
+            </div>
+          )}
         </header>
 
         <nav className="dsv-tabs" role="tablist" aria-label={t('title')}>
@@ -580,11 +691,12 @@ export function SessionView({
               onClick={() => setTab(value)}
             >
               {t(`tab.${value}`)}
-              <span className="dsv-tabCount">{tabCounts[value]}</span>
+              {value !== 'settings' && <span className="dsv-tabCount">{tabCounts[value]}</span>}
             </button>
           ))}
         </nav>
 
+        {tab !== 'settings' && (
         <div className="dsv-toolbar">
           <div className="dsv-search">
             <span className="dsv-searchIcon">
@@ -619,6 +731,7 @@ export function SessionView({
             </span>
           </div>
         </div>
+        )}
 
         {tab === 'active' && (
           <div className="dsv-chips" role="group" aria-label={t('filter.status')}>
@@ -638,7 +751,7 @@ export function SessionView({
           </div>
         )}
 
-        {manage && (
+        {manage && tab !== 'settings' && (
           <div className="dsv-batch">
             <span className="dsv-batchText">{t('select.count', { n: selected.length })}</span>
             <button
@@ -720,7 +833,9 @@ export function SessionView({
 
         {workspaces?.state === 'error' && <div className="dsv-banner">{t('error.workspaces')}</div>}
 
-        {empty ? (
+        {tab === 'settings' ? (
+          settingsNode
+        ) : empty ? (
           <div className="dsv-empty">{emptyNode}</div>
         ) : (
           sectionList.map(([key, titleKey, rows]) => renderSection(key, titleKey, rows))
