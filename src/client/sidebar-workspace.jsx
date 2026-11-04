@@ -22,6 +22,7 @@ import { addToTrash } from './api.js';
 import { getPrefs, setPrefs, subscribePrefs } from './prefs.js';
 import { STYLES } from './styles.js';
 import {
+  ActivityIcon,
   ArchiveIcon,
   ChevronDownIcon,
   ChevronRightIcon,
@@ -764,6 +765,7 @@ export function SidebarWorkspacePane({
     const collapsable = !!workspace;
     const collapsed = collapsedGroups.has(key);
     const menuOpen = menu?.kind === 'workspace' && menu.id === key;
+    const activeCount = activeRows(group.rows).length;
     return (
       <div
         className="dsv-sideGroupHead"
@@ -809,11 +811,31 @@ export function SidebarWorkspacePane({
               {collapsed ? <ChevronRightIcon size={10} /> : <ChevronDownIcon size={10} />}
             </span>
             <span className="dsv-sideGroupTitle">{workspaceLabel(workspace)}</span>
+            {activeCount > 0 && (
+              <span
+                className="dsv-sideActiveMark"
+                role="img"
+                title={t('side.workspaceActive')}
+                aria-label={t('side.workspaceActive')}
+              >
+                <span className="dsv-dot" data-status="running" aria-hidden="true" />
+              </span>
+            )}
             <span className="dsv-sideCount">{group.rows.length}</span>
           </button>
         ) : (
           <div className="dsv-sideGroupToggle">
             <span className="dsv-sideGroupTitle">{t('section.all')}</span>
+            {activeCount > 0 && (
+              <span
+                className="dsv-sideActiveMark"
+                role="img"
+                title={t('side.workspaceActive')}
+                aria-label={t('side.workspaceActive')}
+              >
+                <span className="dsv-dot" data-status="running" aria-hidden="true" />
+              </span>
+            )}
             <span className="dsv-sideCount">{group.rows.length}</span>
           </div>
         )}
@@ -1092,7 +1114,7 @@ export function SidebarWorkspacePane({
                   key: '__active',
                   label: t('side.active'),
                   count: activeTop.length,
-                  icon: <Dot status="running" />,
+                  icon: <ActivityIcon size={12} />,
                   collapsed: activeCollapsed,
                   extra: !activeCollapsed && activeTop.length > prefs.activeLimit && prefs.activeLimit > 0 ? (
                     <button type="button" className="dsv-sideTextBtn" onClick={() => setExpandedActive((prev) => !prev)}>
@@ -1109,7 +1131,7 @@ export function SidebarWorkspacePane({
                 <div className="dsv-sideGroupHead dsv-sideSectionHead">
                   <div className="dsv-sideGroupToggle">
                     <span className="dsv-sideChevron" aria-hidden="true" />
-                    <PinIcon size={11} />
+                    <PinIcon size={12} />
                     <span className="dsv-sideGroupTitle">{t('section.pinned')}</span>
                     <span className="dsv-sideCount">{pinnedRows.length}</span>
                   </div>
@@ -1124,7 +1146,7 @@ export function SidebarWorkspacePane({
                   key: '__recent',
                   label: t('side.recent'),
                   count: recentTop.length,
-                  icon: <ClockIcon size={11} />,
+                  icon: <ClockIcon size={12} />,
                   collapsed: recentCollapsed,
                   extra: !recentCollapsed && recentTop.length > prefs.recentLimit && prefs.recentLimit > 0 ? (
                     <button type="button" className="dsv-sideTextBtn" onClick={() => setExpandedRecent((prev) => !prev)}>
@@ -1142,6 +1164,7 @@ export function SidebarWorkspacePane({
                   key: '__workspaces',
                   label: t('side.workspaces'),
                   count: groups.length,
+                  icon: <LayoutIcon size={12} />,
                   collapsed: workspacesCollapsed,
                 })}
                 {!workspacesCollapsed && groups.map((group, index) => renderGroup(group, index))}
@@ -1153,7 +1176,7 @@ export function SidebarWorkspacePane({
                 <div className="dsv-sideGroupHead dsv-sideSectionHead">
                   <div className="dsv-sideGroupToggle">
                     <span className="dsv-sideChevron" aria-hidden="true" />
-                    <ArchiveIcon size={11} />
+                    <ArchiveIcon size={12} />
                     <span className="dsv-sideGroupTitle">{t('side.archived')}</span>
                     <span className="dsv-sideCount">{archived.length}</span>
                   </div>

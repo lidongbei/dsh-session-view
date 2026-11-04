@@ -129,6 +129,20 @@ export function LayoutIcon({ size = 14 }) {
   );
 }
 
+export function ActivityIcon({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false">
+      <path
+        d="M1.8 8.2h2.4l1.5-3.4 2.1 6.4 1.6-4.2 1.2 1.2h3.6"
+        stroke="currentColor"
+        strokeWidth="1.35"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export function ClockIcon({ size = 14 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false">

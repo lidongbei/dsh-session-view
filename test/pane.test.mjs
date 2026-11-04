@@ -109,6 +109,9 @@ test('SidebarWorkspacePane renders pinned and a limited active group', async () 
     assert.ok(!active.includes('Task run3'), 'active limit was not applied');
     assert.ok(active.includes('更多'), 'missing show-more control');
     assert.match(active, /data-status="running"/);
+    const activeHead = active.match(/<div class="dsv-sideGroupHead dsv-sideSectionHead">([\s\S]*?)<\/div>/)?.[1] ?? '';
+    assert.ok(activeHead.includes('width="12"'), 'active section icon must be 12px');
+    assert.ok(!activeHead.includes('dsv-dot'), 'active section must use an icon, not a status dot');
     assert.match(html, /data-status="pending"/);
     assert.match(html, /data-status="done"/);
     assert.ok(!html.includes('Sub task'), 'subagent row must not be rendered');
@@ -120,12 +123,16 @@ test('SidebarWorkspacePane renders pinned and a limited active group', async () 
     const app = html.match(/<section class="dsv-sideGroup" aria-label="App">([\s\S]*?)<\/section>/)?.[1] ?? '';
     assert.ok(app.includes('Task run1'), 'active session must also appear under its workspace');
     assert.ok(app.includes('Task run3'), 'workspace must keep all sessions even when active is limited');
+    assert.match(app, /class="dsv-sideActiveMark" role="img" title="有活跃会话"/, 'workspace active marker missing');
     assert.ok(html.includes('aria-label="会话管理"'), 'missing manage-sessions button');
     assert.ok(!html.includes('data-dsv-settings-toggle'), 'sidebar settings trigger must be gone');
     assert.ok(!html.includes('dsv-sideFolder'), 'workspace folder icon must be gone');
     assert.ok(html.includes('dsv-sideChevron'), 'workspace disclosure chevron missing');
     assert.ok(html.includes('工作区会话'), 'missing workspace section heading');
     assert.ok(!html.includes('dsv-sidePin'), 'row pin indicator must be gone');
+    assert.ok(html.includes('dsv-sideActiveMark'), 'workspace active marker missing');
+    assert.ok(html.includes('title="有活跃会话"'), 'workspace active marker label missing');
+    assert.match(html, /@keyframes dsv-dotPulse/);
     assert.match(html, /aria-label="活跃会话"[\s\S]*?aria-expanded="true"/, 'active section must start expanded');
 
     const hidden = globalThis.__DSV_PANE_HTML_HIDDEN;
