@@ -1,0 +1,362 @@
+/**
+ * Pure helpers for the session view.
+ *
+ * Nothing here imports React or any Harness package: the functions operate on
+ * the plain snapshots that the slot runtime injects, which keeps them unit
+ * testable in Node without a browser.
+ */
+
+/** Status chips, in the order the toolbar renders them. */
+export const STATUS_LIST = ['running', 'pending', 'done', 'idle'];
+
+const ALL = 'all';
+
+function asSet(value) {
+  return value instanceof Set ? value : new Set(value ?? []);
+}
+
+/**
+ * Collapse the three facts exposed by SessionStatus into one display status.
+ * Pending wins over running because a running turn that waits for the user is
+ * blocked on the user, not on the agent.
+ */
+export function resolveStatus(status, summary) {
+  if (status?.pendingInteraction) return 'pending';
+  if ((status?.running ?? summary?.running) === true) return 'running';
+  if (status?.completionUnread === true) return 'done';
+  return 'idle';
+}
+
+/** Locale key for the pending sub-state; unknown kinds fall back to generic. */
+export function pendingLabelKey(kind) {
+  switch (kind) {
+    case 'approval':
+      return 'pending.approval';
+    case 'plan-review':
+      return 'pending.planReview';
+    case 'question':
+      return 'pending.question';
+    default:
+      return 'pending.generic';
+  }
+}
+
+/** Locale key for a display status. */
+export function statusLabelKey(status) {
+  switch (status) {
+    case 'running':
+      return 'status.running';
+    case 'pending':
+      return 'status.pending';
+    case 'done':
+      return 'status.done';
+    default:
+      return 'status.idle';
+  }
+}
+
+/**
+ * Visible candidates: ordinary Host-list rows plus subagent rows that exist
+ * only in the catalog. Blank and archived sessions are excluded.
+ */
+export function buildCandidates(sessions, archived) {
+  const archivedSet = asSet(archived);
+  const listed = asSet(sessions?.ids);
+  const rows = [];
+  for (const summary of Object.values(sessions?.byId ?? {})) {
+    if (!summary || !summary.id) continue;
+    if (summary.blank) continue;
+    if (archivedSet.has(summary.id)) continue;
+    if (!listed.has(summary.id) && summary.origin !== 'subagent') continue;
+    rows.push(summary);
+  }
+  rows.sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0) || String(a.id).localeCompare(String(b.id)));
+  return rows;
+}
+
+/**
+ * Group sessions into parent-first families, then flatten with a depth.
+ *
+ * A session whose parent is not visible becomes a root row marked `orphan`, so
+ * archived parents never hide their children. Cycles are tolerated: the first
+ * visit wins and the remaining node is emitted as a root at the end.
+ */
+export function buildFamilies(candidates, byId = {}) {
+  const visible = new Map(candidates.map((session) => [session.id, session]));
+  const children = new Map();
+  const roots = [];
+
+  for (const session of candidates) {
+    const parentId = session.parentId;
+    if (parentId && parentId !== session.id && visible.has(parentId)) {
+      const list = children.get(parentId) ?? [];
+      list.push(session);
+      children.set(parentId, list);
+    } else {
+      roots.push(session);
+    }
+  }
+
+  const newestFirst = (a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0);
+  for (const list of children.values()) list.sort(newestFirst);
+
+  const memo = new Map();
+  const maxUpdated = (session, stack = new Set()) => {
+    if (memo.has(session.id)) return memo.get(session.id);
+    if (stack.has(session.id)) return session.updatedAt ?? 0;
+    stack.add(session.id);
+    let max = session.updatedAt ?? 0;
+    for (const child of children.get(session.id) ?? []) {
+      max = Math.max(max, maxUpdated(child, stack));
+    }
+    stack.delete(session.id);
+    memo.set(session.id, max);
+    return max;
+  };
+
+  roots.sort((a, b) => maxUpdated(b) - maxUpdated(a) || newestFirst(a, b));
+
+  const rows = [];
+  const seen = new Set();
+  const visit = (session, depth, orphan) => {
+    if (seen.has(session.id)) return;
+    seen.add(session.id);
+    rows.push({ session, depth, orphan });
+    for (const child of children.get(session.id) ?? []) visit(child, depth + 1, false);
+  };
+
+  for (const root of roots) {
+    const parentId = root.parentId;
+    const orphan = Boolean(parentId && parentId !== root.id && !visible.has(parentId));
+    visit(root, 0, orphan);
+  }
+  // Only reachable through a parent cycle; emit the remainder as roots.
+  const remaining = candidates.filter((session) => !seen.has(session.id)).sort(newestFirst);
+  for (const session of remaining) {
+    if (!seen.has(session.id)) visit(session, 0, false);
+  }
+  return rows;
+}
+
+/** Map every workspace member session id to its workspace. */
+export function workspaceIndex(workspaces) {
+  const index = new Map();
+  for (const workspace of workspaces?.items ?? []) {
+    for (const sessionId of workspace?.sessionIds ?? []) {
+      if (!index.has(sessionId)) index.set(sessionId, workspace);
+    }
+  }
+  return index;
+}
+
+/**
+ * Resolve a workspace for a row; subagent rows inherit the nearest ancestor's
+ * workspace because Host workspace membership normally tracks roots only.
+ */
+export function resolveWorkspace(session, index, byId = {}) {
+  const seen = new Set();
+  let current = session;
+  while (current && !seen.has(current.id)) {
+    seen.add(current.id);
+    const workspace = index.get(current.id);
+    if (workspace) return workspace;
+    const parentId = current.parentId;
+    if (!parentId || parentId === current.id) return undefined;
+    current = byId[parentId];
+  }
+  return undefined;
+}
+
+/** Families + workspace + resolved title, ready for the row component. */
+export function buildRows(candidates, byId, workspaces) {
+  const index = workspaceIndex(workspaces);
+  return buildFamilies(candidates, byId).map((row) => ({
+    ...row,
+    title: sessionTitle(row.session),
+    workspace: resolveWorkspace(row.session, index, byId),
+  }));
+}
+
+/** Attach display status and count running descendants on each ancestor. */
+export function annotateRows(rows, statuses) {
+  const annotated = rows.map((row) => {
+    const status = statuses?.get?.(row.session.id);
+    return {
+      ...row,
+      status: resolveStatus(status, row.session),
+      pendingKind: status?.pendingInteraction?.kind,
+      runningChildren: 0,
+    };
+  });
+
+  const byId = new Map(annotated.map((row) => [row.session.id, row]));
+  for (const row of annotated) {
+    if (row.status !== 'running') continue;
+    const seen = new Set([row.session.id]);
+    let parentId = row.session.parentId;
+    while (parentId && byId.has(parentId) && !seen.has(parentId)) {
+      seen.add(parentId);
+      const parent = byId.get(parentId);
+      parent.runningChildren += 1;
+      parentId = parent.session.parentId;
+    }
+  }
+  return annotated;
+}
+
+/** Search across title, workspace label/path, cwd and id. */
+export function matchesQuery(row, query) {
+  const needle = String(query ?? '').trim().toLowerCase();
+  if (!needle) return true;
+  const workspace = row.workspace;
+  const haystack = [
+    row.title,
+    row.session?.displayTitle,
+    row.session?.cwd,
+    workspace?.title,
+    workspace?.path,
+    row.session?.id,
+  ]
+    .filter((value) => typeof value === 'string' && value.length > 0)
+    .join('\n')
+    .toLowerCase();
+  return needle.split(/\s+/).every((part) => haystack.includes(part));
+}
+
+/** Apply workspace, status and free-text filters without mutating input. */
+export function filterRows(rows, { query = '', workspaceId = ALL, status = ALL } = {}) {
+  return rows.filter((row) => {
+    if (status !== ALL && row.status !== status) return false;
+    if (workspaceId !== ALL && row.workspace?.workspaceId !== workspaceId) return false;
+    return matchesQuery(row, query);
+  });
+}
+
+/** Counts for the status chips; `all` is the total of the given rows. */
+export function countByStatus(rows) {
+  const counts = { all: rows.length, running: 0, pending: 0, done: 0, idle: 0 };
+  for (const row of rows) {
+    if (counts[row.status] !== undefined) counts[row.status] += 1;
+  }
+  return counts;
+}
+
+/** Deterministic relative-time descriptor; the component supplies the locale. */
+export function formatRelativeTime(updatedAt, now = Date.now()) {
+  if (!Number.isFinite(updatedAt) || updatedAt <= 0) return { key: 'time.unknown' };
+  const diff = Math.max(0, now - updatedAt);
+  if (diff < 60_000) return { key: 'time.justNow' };
+  const minutes = Math.floor(diff / 60_000);
+  if (minutes < 60) return { key: 'time.minutesAgo', n: minutes };
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return { key: 'time.hoursAgo', n: hours };
+  const days = Math.floor(hours / 24);
+  if (days < 7) return { key: 'time.daysAgo', n: days };
+  if (days < 30) return { key: 'time.weeksAgo', n: Math.floor(days / 7) };
+  if (days < 365) return { key: 'time.monthsAgo', n: Math.floor(days / 30) };
+  return { key: 'time.yearsAgo', n: Math.floor(days / 365) };
+}
+
+/** Human-facing session title with deterministic fallbacks. */
+export function sessionTitle(summary) {
+  const display = summary?.displayTitle?.trim();
+  if (display) return display;
+  const title = summary?.title?.trim();
+  if (title) return title;
+  return summary?.id ?? '';
+}
+
+/** Workspace title, falling back to the last path segment. */
+export function workspaceLabel(workspace) {
+  const title = workspace?.title?.trim();
+  if (title) return title;
+  return basename(workspace?.path);
+}
+
+/** Last path segment for either Windows or POSIX separators. */
+export function basename(path) {
+  if (typeof path !== 'string') return '';
+  const parts = path.split(/[\\/]/).filter(Boolean);
+  return parts.length > 0 ? parts[parts.length - 1] : '';
+}
+
+/**
+ * Split rows into the pinned strip and one bucket per display status.
+ *
+ * Pinned rows stay in pinned order and are removed from the status buckets so a
+ * session never appears twice. Subagent rows follow their parent inside the
+ * same bucket (the input is already family-flattened).
+ */
+export function splitSections(rows, pinnedIds) {
+  const pinnedOrder = new Map();
+  for (const [index, id] of (pinnedIds ?? []).entries()) {
+    if (!pinnedOrder.has(id)) pinnedOrder.set(id, index);
+  }
+  const pinned = rows
+    .filter((row) => pinnedOrder.has(row.session.id))
+    .sort((a, b) => pinnedOrder.get(a.session.id) - pinnedOrder.get(b.session.id));
+  const pinnedSet = new Set(pinned.map((row) => row.session.id));
+  const rest = rows.filter((row) => !pinnedSet.has(row.session.id));
+  return {
+    pinned,
+    running: rest.filter((row) => row.status === 'running'),
+    pending: rest.filter((row) => row.status === 'pending'),
+    done: rest.filter((row) => row.status === 'done'),
+    idle: rest.filter((row) => row.status === 'idle'),
+  };
+}
+
+/** First `limit` rows, used by the compact sidebar board. */
+export function topRows(rows, limit) {
+  return rows.slice(0, Math.max(0, limit));
+}
+
+/** Turn host trash records into renderable rows, preferring live summaries. */
+export function trashRows(items, byId = {}) {
+  const latest = new Map();
+  for (const item of items ?? []) {
+    if (!item || typeof item.sessionId !== 'string') continue;
+    const previous = latest.get(item.sessionId);
+    if (previous && (previous.deletedAt ?? 0) >= (item.deletedAt ?? 0)) continue;
+    latest.set(item.sessionId, item);
+  }
+  return [...latest.values()]
+    .map((item) => {
+      const summary = byId[item.sessionId] ?? {
+        id: item.sessionId,
+        title: item.title,
+        displayTitle: item.title,
+        cwd: item.cwd,
+        updatedAt: item.deletedAt,
+      };
+      return {
+        session: summary,
+        title: sessionTitle(summary),
+        depth: 0,
+        orphan: false,
+        status: 'idle',
+        deletedAt: item.deletedAt ?? 0,
+        trashed: true,
+      };
+    })
+    .sort((a, b) => (b.deletedAt ?? 0) - (a.deletedAt ?? 0));
+}
+
+/** Archived session ids that still exist in the snapshot, newest first. */
+export function archivedRows(sessions, archivedIds) {
+  const byId = sessions?.byId ?? {};
+  const rows = [];
+  for (const id of archivedIds ?? []) {
+    const summary = byId[id];
+    if (!summary) continue;
+    rows.push({
+      session: summary,
+      title: sessionTitle(summary),
+      depth: 0,
+      orphan: false,
+      status: 'idle',
+      archived: true,
+    });
+  }
+  return rows.sort((a, b) => (b.session.updatedAt ?? 0) - (a.session.updatedAt ?? 0));
+}
