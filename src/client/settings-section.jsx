@@ -70,18 +70,6 @@ export function SessionViewSettings({ t }) {
         </label>
 
         <label className="dsv-field">
-          <span className="dsv-fieldLabel">{t('settings.layout')}</span>
-          <select
-            className="dsv-select"
-            value={prefs.layout}
-            onChange={(event) => setPrefs({ layout: event.target.value })}
-          >
-            <option value="grouped">{t('settings.layout.grouped')}</option>
-            <option value="flat">{t('settings.layout.flat')}</option>
-          </select>
-        </label>
-
-        <label className="dsv-field">
           <span className="dsv-fieldLabel">{t('settings.sort')}</span>
           <select
             className="dsv-select"
@@ -132,6 +120,15 @@ export function SessionViewSettings({ t }) {
           onChange={(event) => setPrefs({ showActive: event.target.checked })}
         />
         <span>{t('settings.showActive')}</span>
+      </label>
+
+      <label className="dsv-toggleRow">
+        <input
+          type="checkbox"
+          checked={prefs.showWorkspaces}
+          onChange={(event) => setPrefs({ showWorkspaces: event.target.checked })}
+        />
+        <span>{t('settings.showWorkspaces')}</span>
       </label>
 
       <label className="dsv-toggleRow">

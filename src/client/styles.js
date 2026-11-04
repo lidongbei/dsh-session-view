@@ -873,7 +873,6 @@ export const STYLES = `
 .dsv-side[data-compact="true"] .dsv-sideRowTitle { font-size: 13px; line-height: 18px; }
 .dsv-side[data-compact="true"] .dsv-sideTag,
 .dsv-side[data-compact="true"] .dsv-sideTime { display: none; }
-.dsv-sidePin { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 16px; height: 20px; margin-left: 6px; color: var(--dsw-alias-label-caption); }
 .dsv-sideRowActions {
   position: absolute;
   right: 4px;
@@ -892,10 +891,8 @@ export const STYLES = `
 .dsv-sideRowActions .dsv-sideIconBtn { width: 20px; height: 20px; }
 .dsv-sideRow:hover .dsv-sideTime,
 .dsv-sideRow:hover .dsv-sideWaiting,
-.dsv-sideRow:hover .dsv-sidePin,
 .dsv-sideRow:focus-within .dsv-sideTime,
-.dsv-sideRow:focus-within .dsv-sideWaiting,
-.dsv-sideRow:focus-within .dsv-sidePin { display: none; }
+.dsv-sideRow:focus-within .dsv-sideWaiting { display: none; }
 .dsv-sideMore {
   display: flex;
   align-items: center;

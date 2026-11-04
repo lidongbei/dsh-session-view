@@ -10,7 +10,6 @@ import {
   formatRelativeTime,
   groupByWorkspace,
   moveId,
-  orderKey,
   pendingLabelKey,
   sessionTitle,
   splitSections,
@@ -400,10 +399,6 @@ export function SidebarWorkspacePane({
   );
 
   const groups = useMemo(() => {
-    if (prefs.layout === 'flat') {
-      const rows = prefs.sort === 'manual' ? applyFamilyOrder(restRows, prefs.manualOrder.__flat) : sortFamilies(restRows, byUpdated);
-      return [{ workspace: null, depth: 0, rows, key: '__flat' }];
-    }
     const built = groupByWorkspace(restRows, workspaces, prefs.nestWorkspaces);
     return built
       .map((group) => {
@@ -415,7 +410,7 @@ export function SidebarWorkspacePane({
       // Empty workspaces stay visible: their header is still a useful place to
       // start a session from the workspace context menu.
       ;
-  }, [restRows, workspaces, prefs.layout, prefs.nestWorkspaces, prefs.sort, prefs.manualOrder]);
+  }, [restRows, workspaces, prefs.nestWorkspaces, prefs.sort, prefs.manualOrder]);
 
   const archived = useMemo(() => {
     if (prefs.archivedFilter === 'hide') return [];
@@ -540,8 +535,8 @@ export function SidebarWorkspacePane({
     const dragId = dragRef.current;
     dragRef.current = null;
     if (!dragId || dragId === target.session.id) return;
-    const key = orderKey(target, prefs.layout);
-    const group = groups.find((item) => item.key === key);
+    const group = groups.find((item) => item.rows.some((row) => row.session.id === target.session.id));
+    const key = group?.key ?? '__none';
     const current = prefs.manualOrder[key] ?? (group?.rows ?? []).map((row) => row.session.id);
     const next = moveId(current, dragId, target.session.id);
     setPrefs({ manualOrder: { ...prefs.manualOrder, [key]: next } });
@@ -559,18 +554,6 @@ export function SidebarWorkspacePane({
     const menuOpen = menu?.kind === 'session' && menu.id === row.session.id;
     return (
       <div className="dsv-sideRowActions">
-        {!archivedRow && (
-          <button
-            type="button"
-            className="dsv-sideIconBtn"
-            aria-pressed={isPinned}
-            aria-label={t(isPinned ? 'action.unpin' : 'action.pin')}
-            title={t(isPinned ? 'action.unpin' : 'action.pin')}
-            onClick={() => togglePin(row)}
-          >
-            <PinIcon size={11} />
-          </button>
-        )}
         <div className="dsv-menuWrap">
           <button
             type="button"
@@ -698,6 +681,25 @@ export function SidebarWorkspacePane({
     ? groups.map((group) => group.workspace).find((workspace) => workspace?.workspaceId === contextMenu.id)
     : null;
 
+  const sectionHead = ({ key, label, count, icon = null, collapsed, extra = null }) => (
+    <div className="dsv-sideGroupHead dsv-sideSectionHead">
+      <button
+        type="button"
+        className="dsv-sideGroupToggle"
+        aria-expanded={!collapsed}
+        onClick={() => toggleGroup(key)}
+      >
+        <span className="dsv-sideChevron" data-collapsed={collapsed}>
+          {collapsed ? <ChevronRightIcon size={10} /> : <ChevronDownIcon size={10} />}
+        </span>
+        {icon}
+        <span className="dsv-sideGroupTitle">{label}</span>
+        <span className="dsv-sideCount">{count}</span>
+      </button>
+      {extra}
+    </div>
+  );
+
   const renderRow = (row, options = {}) => {
     const { archivedRow = false } = options;
     const open = () => openSession(row.session.id);
@@ -751,11 +753,6 @@ export function SidebarWorkspacePane({
             )
           )}
         </button>
-        {!archivedRow && isPinned && (
-          <span className="dsv-sidePin" aria-hidden="true">
-            <PinIcon size={12} />
-          </span>
-        )}
         {rowActions(row, archivedRow)}
       </div>
     );
@@ -902,6 +899,9 @@ export function SidebarWorkspacePane({
   };
 
   const searchActive = query.trim().length > 0;
+  const activeCollapsed = collapsedGroups.has('__active');
+  const recentCollapsed = collapsedGroups.has('__recent');
+  const workspacesCollapsed = collapsedGroups.has('__workspaces');
 
   useEffect(() => {
     if (typeof document === 'undefined') return undefined;
@@ -1088,19 +1088,19 @@ export function SidebarWorkspacePane({
           <>
             {prefs.archivedFilter !== 'only' && prefs.showActive && activeRowsView.length > 0 && (
               <section className="dsv-sideGroup" aria-label={t('side.active')}>
-                <div className="dsv-sideGroupHead dsv-sideSectionHead">
-                  <div className="dsv-sideGroupToggle">
-                    <Dot status="running" />
-                    <span className="dsv-sideGroupTitle">{t('side.active')}</span>
-                    <span className="dsv-sideCount">{activeTop.length}</span>
-                  </div>
-                  {activeTop.length > prefs.activeLimit && prefs.activeLimit > 0 && (
+                {sectionHead({
+                  key: '__active',
+                  label: t('side.active'),
+                  count: activeTop.length,
+                  icon: <Dot status="running" />,
+                  collapsed: activeCollapsed,
+                  extra: !activeCollapsed && activeTop.length > prefs.activeLimit && prefs.activeLimit > 0 ? (
                     <button type="button" className="dsv-sideTextBtn" onClick={() => setExpandedActive((prev) => !prev)}>
                       {t(expandedActive ? 'side.less' : 'side.more')}
                     </button>
-                  )}
-                </div>
-                {activeRowsView.map((row) => renderRow(row))}
+                  ) : null,
+                })}
+                {!activeCollapsed && activeRowsView.map((row) => renderRow(row))}
               </section>
             )}
 
@@ -1108,6 +1108,7 @@ export function SidebarWorkspacePane({
               <section className="dsv-sideGroup" aria-label={t('section.pinned')}>
                 <div className="dsv-sideGroupHead dsv-sideSectionHead">
                   <div className="dsv-sideGroupToggle">
+                    <span className="dsv-sideChevron" aria-hidden="true" />
                     <PinIcon size={11} />
                     <span className="dsv-sideGroupTitle">{t('section.pinned')}</span>
                     <span className="dsv-sideCount">{pinnedRows.length}</span>
@@ -1119,28 +1120,39 @@ export function SidebarWorkspacePane({
 
             {prefs.archivedFilter !== 'only' && prefs.showRecent && recentRowsView.length > 0 && (
               <section className="dsv-sideGroup" aria-label={t('side.recent')}>
-                <div className="dsv-sideGroupHead dsv-sideSectionHead">
-                  <div className="dsv-sideGroupToggle">
-                    <ClockIcon size={11} />
-                    <span className="dsv-sideGroupTitle">{t('side.recent')}</span>
-                    <span className="dsv-sideCount">{recentTop.length}</span>
-                  </div>
-                  {recentTop.length > prefs.recentLimit && prefs.recentLimit > 0 && (
+                {sectionHead({
+                  key: '__recent',
+                  label: t('side.recent'),
+                  count: recentTop.length,
+                  icon: <ClockIcon size={11} />,
+                  collapsed: recentCollapsed,
+                  extra: !recentCollapsed && recentTop.length > prefs.recentLimit && prefs.recentLimit > 0 ? (
                     <button type="button" className="dsv-sideTextBtn" onClick={() => setExpandedRecent((prev) => !prev)}>
                       {t(expandedRecent ? 'side.less' : 'side.more')}
                     </button>
-                  )}
-                </div>
-                {recentRowsView.map((row) => renderRow(row))}
+                  ) : null,
+                })}
+                {!recentCollapsed && recentRowsView.map((row) => renderRow(row))}
               </section>
             )}
 
-            {prefs.archivedFilter !== 'only' && groups.map((group, index) => renderGroup(group, index))}
+            {prefs.archivedFilter !== 'only' && prefs.showWorkspaces && groups.length > 0 && (
+              <section className="dsv-sideGroup dsv-sideWorkspaces" aria-label={t('side.workspaces')}>
+                {sectionHead({
+                  key: '__workspaces',
+                  label: t('side.workspaces'),
+                  count: groups.length,
+                  collapsed: workspacesCollapsed,
+                })}
+                {!workspacesCollapsed && groups.map((group, index) => renderGroup(group, index))}
+              </section>
+            )}
 
             {(prefs.archivedFilter === 'show' || prefs.archivedFilter === 'only') && (
               <section className="dsv-sideGroup" aria-label={t('side.archived')}>
                 <div className="dsv-sideGroupHead dsv-sideSectionHead">
                   <div className="dsv-sideGroupToggle">
+                    <span className="dsv-sideChevron" aria-hidden="true" />
                     <ArchiveIcon size={11} />
                     <span className="dsv-sideGroupTitle">{t('side.archived')}</span>
                     <span className="dsv-sideCount">{archived.length}</span>
@@ -1155,7 +1167,7 @@ export function SidebarWorkspacePane({
             )}
 
             {activeRowsView.length === 0 && pinnedRows.length === 0 && archived.length === 0 &&
-              !groups.some((group) => group.rows.length > 0) && (
+              prefs.showWorkspaces && !groups.some((group) => group.rows.length > 0) && (
               <div className="dsv-sideEmpty">
                 <span>{t('empty.none')}</span>
                 <span className="dsv-sideHint">{t('empty.noneHint')}</span>

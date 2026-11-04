@@ -435,12 +435,6 @@ export function workspaceTree(workspaces) {
   return ordered;
 }
 
-/** Key under which a row's manual position is stored. */
-export function orderKey(row, layout) {
-  if (layout === 'flat') return '__flat';
-  return row.workspace?.workspaceId ?? '__none';
-}
-
 /**
  * Group rows by workspace while preserving family order. Pinned rows are
  * removed by the caller. Workspaces without rows are returned too so the pane

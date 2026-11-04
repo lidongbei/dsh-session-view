@@ -6,7 +6,6 @@ import {
   groupByWorkspace,
   limitRows,
   moveId,
-  orderKey,
   watermarkLimit,
   workspaceTree,
 } from '../src/client/logic.js';
@@ -33,11 +32,11 @@ test('preferences default to session mode and clamp invalid input', () => {
   assert.equal(getPrefs().activeLimit, 5);
   assert.deepEqual({ ...DEFAULT_PREFS.manualOrder }, {});
 
-  setPrefs({ activeLimit: 99, workspaceLimit: -2, mode: 'weird', layout: 'flat', showIdle: false });
+  setPrefs({ activeLimit: 99, workspaceLimit: -2, mode: 'weird', showIdle: false });
   assert.equal(getPrefs().activeLimit, 5);
   assert.equal(getPrefs().workspaceLimit, 5);
   assert.equal(getPrefs().mode, 'session');
-  assert.equal(getPrefs().layout, 'flat');
+  assert.equal(getPrefs().showWorkspaces, true);
   assert.equal(getPrefs().showIdle, false);
 
   setPrefs({ manualOrder: { __flat: ['a', 3, 'b'] } });
@@ -54,6 +53,7 @@ test('preferences default to session mode and clamp invalid input', () => {
     showRecent: false,
     showPinned: false,
     showActive: false,
+    showWorkspaces: false,
     recentLimit: 99,
     showTimes: false,
     compact: true,
@@ -63,6 +63,7 @@ test('preferences default to session mode and clamp invalid input', () => {
   assert.equal(getPrefs().showRecent, false);
   assert.equal(getPrefs().showPinned, false);
   assert.equal(getPrefs().showActive, false);
+  assert.equal(getPrefs().showWorkspaces, false);
   assert.equal(getPrefs().recentLimit, 5);
   assert.equal(getPrefs().showTimes, false);
   assert.equal(getPrefs().compact, true);
@@ -133,12 +134,6 @@ test('groupByWorkspace keeps empty workspaces and the ungrouped bucket', () => {
       [null, 0, ['c']],
     ],
   );
-});
-
-test('orderKey separates flat and ungrouped rows', () => {
-  assert.equal(orderKey(row('a'), 'flat'), '__flat');
-  assert.equal(orderKey(row('a'), 'grouped'), '__none');
-  assert.equal(orderKey(row('a', { workspace: { workspaceId: 'w' } }), 'grouped'), 'w');
 });
 
 test('manual ordering moves pinned rows and keeps unknown rows last', () => {

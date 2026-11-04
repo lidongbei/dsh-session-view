@@ -19,10 +19,10 @@ export const DEFAULT_PREFS = Object.freeze({
   showRecent: true,
   showPinned: true,
   showActive: true,
+  showWorkspaces: true,
   showTimes: true,
   compact: false,
   archivedFilter: 'hide',
-  layout: 'grouped',
   sort: 'updated',
   nestWorkspaces: true,
   manualOrder: Object.freeze({}),
@@ -31,7 +31,6 @@ export const DEFAULT_PREFS = Object.freeze({
 
 const MODES = new Set(['session', 'native']);
 const ARCHIVED = new Set(['hide', 'show', 'only']);
-const LAYOUTS = new Set(['grouped', 'flat']);
 const SORTS = new Set(['updated', 'manual']);
 
 function sanitize(raw) {
@@ -60,10 +59,10 @@ function sanitize(raw) {
     showRecent: value.showRecent !== false,
     showPinned: value.showPinned !== false,
     showActive: value.showActive !== false,
+    showWorkspaces: value.showWorkspaces !== false,
     showTimes: value.showTimes !== false,
     compact: value.compact === true,
     archivedFilter: ARCHIVED.has(value.archivedFilter) ? value.archivedFilter : DEFAULT_PREFS.archivedFilter,
-    layout: LAYOUTS.has(value.layout) ? value.layout : DEFAULT_PREFS.layout,
     sort: SORTS.has(value.sort) ? value.sort : DEFAULT_PREFS.sort,
     nestWorkspaces: value.nestWorkspaces !== false,
     manualOrder,
