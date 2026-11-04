@@ -3,10 +3,13 @@ import assert from 'node:assert/strict';
 import {
   activeRows,
   applyManualOrder,
+  buildCandidates,
   groupByWorkspace,
   limitRows,
   moveId,
+  sessionTitle,
   watermarkLimit,
+  workspaceByPath,
   workspaceTree,
 } from '../src/client/logic.js';
 import { DEFAULT_PREFS, getPrefs, resetPrefs, setPrefs } from '../src/client/prefs.js';
@@ -88,11 +91,48 @@ test('activeRows keeps top-level running, pending and parent-of-running rows', (
   );
 });
 
+test('a new blank draft is visible only while retained by the main view', () => {
+  const draft = { id: 'draft', blank: true, retainedBy: { mainView: 1 } };
+  const stale = { id: 'stale', blank: true, retainedBy: { mainView: 0 } };
+  const listed = { id: 'listed', blank: false };
+  const hidden = { id: 'hidden', blank: false };
+  const sessions = {
+    ids: ['draft', 'stale', 'listed'],
+    byId: { draft, stale, listed, hidden },
+  };
+  assert.deepEqual(
+    buildCandidates(sessions, []).map((session) => session.id).sort(),
+    ['draft', 'listed'],
+  );
+  assert.equal(sessionTitle(draft), '');
+
+  const rows = [
+    row('draft', { session: draft }),
+    row('stale', { session: stale }),
+    row('listed', { session: listed }),
+  ];
+  assert.deepEqual(activeRows(rows).map((item) => item.session.id), ['draft']);
+});
+
 test('limitRows treats zero and non-finite as unlimited', () => {
   const rows = [row('a'), row('b'), row('c')];
   assert.equal(limitRows(rows, 0), rows);
   assert.equal(limitRows(rows, Number.NaN), rows);
   assert.deepEqual(limitRows(rows, 2).map((item) => item.session.id), ['a', 'b']);
+});
+
+
+test('workspaceByPath matches the longest normalized cwd prefix', () => {
+  const workspaces = {
+    items: [
+      workspace('r', 'C:/work'),
+      workspace('s', 'C:/work/sub'),
+    ],
+  };
+  assert.equal(workspaceByPath(workspaces, 'c:/WORK/sub/project')?.workspaceId, 's');
+  assert.equal(workspaceByPath(workspaces, 'C:/work')?.workspaceId, 'r');
+  assert.equal(workspaceByPath(workspaces, 'D:/nope'), undefined);
+  assert.equal(workspaceByPath(workspaces, ''), undefined);
 });
 
 test('workspaceTree nests by longest path prefix and keeps parents first', () => {

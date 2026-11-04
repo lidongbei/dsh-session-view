@@ -119,7 +119,7 @@ test('SidebarWorkspacePane renders pinned and a limited active group', async () 
     assert.ok(!html.includes('暂无会话'), 'empty-workspace hint must not be rendered');
     assert.ok(html.includes('最近会话'), 'missing recent group');
     const recent = html.match(/<section class="dsv-sideGroup" aria-label="最近会话">([\s\S]*?)<\/section>/)?.[1] ?? '';
-    assert.ok(recent.includes('Task idle'), 'recent group must contain the remaining recent session');
+    assert.ok(recent.includes('Task run1'), 'recent group must include active sessions too');
     const app = html.match(/<section class="dsv-sideGroup" aria-label="App">([\s\S]*?)<\/section>/)?.[1] ?? '';
     assert.ok(app.includes('Task run1'), 'active session must also appear under its workspace');
     assert.ok(app.includes('Task run3'), 'workspace must keep all sessions even when active is limited');

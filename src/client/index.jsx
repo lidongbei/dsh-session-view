@@ -44,7 +44,10 @@ export function apply(ctx) {
     unpinSession: (sessionId) => ui.unpinSession(sessionId),
     archiveSession: (sessionId, options) => ui.archiveSession(sessionId, options),
     unarchiveSession: (sessionId) => ui.unarchiveSession(sessionId),
-    startSession: (workspaceId, options) => ui.startSession(workspaceId, options),
+    startSession: (workspaceId, options) => {
+      ctx.layout.selectPanel(null);
+      return ui.startSession(workspaceId, options);
+    },
     forkSession: (sessionId, onCreated, options) => ui.forkSession(sessionId, onCreated, options),
     pickDirectory: () => ui.pickDirectory(),
     renameSession,

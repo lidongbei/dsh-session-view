@@ -364,27 +364,23 @@ export function SidebarWorkspacePane({
     return picked.flatMap((row) => familyFor(annotated, row.session.id));
   }, [annotated, activeTop, expandedActive, prefs.activeLimit]);
 
-  const pinnedIds = useMemo(() => familyIds(annotated, pinnedRows.map((row) => row.session.id)), [annotated, pinnedRows]);
   const pinnedView = useMemo(
     () => pinnedRows.flatMap((row) => familyFor(annotated, row.session.id)),
     [annotated, pinnedRows],
   );
-  const activeFamilyIds = useMemo(
-    () => familyIds(annotated, activeTop.map((row) => row.session.id)),
-    [annotated, activeTop],
-  );
-
-  // "Recent" is the remaining recency list: pinned and active families already
-  // have their own shortcuts above, so they are not repeated here.
-  const recentTop = useMemo(() => {
-    const excluded = new Set([...pinnedIds, ...activeFamilyIds]);
-    return topLevelRows(
-      sortFamilies(
-        annotated.filter((row) => !excluded.has(row.session.id) && (prefs.showIdle || row.status !== 'idle')),
-        byUpdated,
+  // "Recent" is the recency shortcut across every session, including pinned and
+  // active ones. The three shortcut groups may overlap; workspace groups stay
+  // the canonical place for every session.
+  const recentTop = useMemo(
+    () =>
+      topLevelRows(
+        sortFamilies(
+          annotated.filter((row) => prefs.showIdle || row.status !== 'idle'),
+          byUpdated,
+        ),
       ),
-    );
-  }, [annotated, pinnedIds, activeFamilyIds, prefs.showIdle]);
+    [annotated, prefs.showIdle],
+  );
 
   const recentRowsView = useMemo(() => {
     const limit = expandedRecent ? 0 : prefs.recentLimit;
@@ -707,6 +703,7 @@ export function SidebarWorkspacePane({
     const isPinned = pinnedSet.has(row.session.id);
     const time = formatTime(t, row.session.updatedAt, now);
     const waiting = row.status === 'pending';
+    const title = row.session.blank ? t('row.newSession') : row.title;
     return (
       <div
         key={row.session.id}
@@ -734,12 +731,12 @@ export function SidebarWorkspacePane({
           className="dsv-sideOpen"
           onClick={open}
           onFocus={() => { focusedRef.current = row.session.id; }}
-          title={row.title}
+          title={title}
         >
           <span className="dsv-sideSlot">
             <Dot status={archivedRow ? 'idle' : row.status} />
           </span>
-          <span className="dsv-sideRowTitle">{row.title}</span>
+          <span className="dsv-sideRowTitle">{title}</span>
           {row.depth > 0 && <span className="dsv-sideTag">{t('row.child')}</span>}
           {row.runningChildren > 0 && (
             <span className="dsv-sideRunning" title={t('row.runningChildren', { n: row.runningChildren })}>

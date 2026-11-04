@@ -409,6 +409,7 @@ export function SessionView({
       ? workspaceLabel(row.workspace) || t('workspace.unknown')
       : t('workspace.unknown');
     const meta = tab === 'trash' ? t('trash.deletedAt', { time: timeLabel }) : `${workspaceName} · ${timeLabel}`;
+    const title = row.session.blank ? t('row.newSession') : row.title;
 
     return (
       <div
@@ -432,7 +433,7 @@ export function SessionView({
           type="button"
           className="dsv-rowButton"
           onClick={() => (manage ? toggleSelect(id) : tab === 'active' && openSession(id))}
-          title={tab === 'active' ? t('row.open', { title: row.title }) : row.title}
+          title={tab === 'active' ? t('row.open', { title }) : title}
         >
           {tab !== 'trash' && <span className="dsv-status" data-status={row.status} aria-hidden="true" />}
           <span className="dsv-main">
@@ -442,7 +443,7 @@ export function SessionView({
                   <PinIcon size={10} />
                 </span>
               )}
-              {row.title}
+              {title}
             </span>
             <span className="dsv-rowMeta">
               {row.session.origin === 'subagent' && <span className="dsv-tag">{t('row.child')}</span>}

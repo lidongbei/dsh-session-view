@@ -57,7 +57,9 @@ export function statusLabelKey(status) {
 
 /**
  * Visible candidates: ordinary Host-list rows plus subagent rows that exist
- * only in the catalog. Blank and archived sessions are excluded.
+ * only in the catalog. Archived sessions are excluded. A blank session is only
+ * visible while it is retained by the main view, i.e. the freshly created
+ * draft the user is currently looking at.
  */
 export function buildCandidates(sessions, archived) {
   const archivedSet = asSet(archived);
@@ -65,9 +67,10 @@ export function buildCandidates(sessions, archived) {
   const rows = [];
   for (const summary of Object.values(sessions?.byId ?? {})) {
     if (!summary || !summary.id) continue;
-    if (summary.blank) continue;
+    const currentDraft = summary.blank && (summary.retainedBy?.mainView ?? 0) > 0;
+    if (summary.blank && !currentDraft) continue;
     if (archivedSet.has(summary.id)) continue;
-    if (!listed.has(summary.id) && summary.origin !== 'subagent') continue;
+    if (!listed.has(summary.id) && summary.origin !== 'subagent' && !currentDraft) continue;
     rows.push(summary);
   }
   rows.sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0) || String(a.id).localeCompare(String(b.id)));
@@ -149,6 +152,32 @@ export function workspaceIndex(workspaces) {
   return index;
 }
 
+function normalizedPath(value) {
+  return String(value ?? '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+}
+
+/**
+ * Fall back to the workspace whose path owns `cwd`. A freshly created blank
+ * session is not part of `workspace.sessionIds` yet, but it already carries the
+ * target workspace path, so path matching keeps it under that workspace.
+ */
+export function workspaceByPath(workspaces, cwd) {
+  const target = normalizedPath(cwd);
+  if (!target) return undefined;
+  let best;
+  let bestLength = -1;
+  for (const workspace of workspaces?.items ?? []) {
+    const path = normalizedPath(workspace?.path);
+    if (!path) continue;
+    if (target !== path && !target.startsWith(`${path}/`)) continue;
+    if (path.length > bestLength) {
+      best = workspace;
+      bestLength = path.length;
+    }
+  }
+  return best;
+}
+
 /**
  * Resolve a workspace for a row; subagent rows inherit the nearest ancestor's
  * workspace because Host workspace membership normally tracks roots only.
@@ -173,7 +202,7 @@ export function buildRows(candidates, byId, workspaces) {
   return buildFamilies(candidates, byId).map((row) => ({
     ...row,
     title: sessionTitle(row.session),
-    workspace: resolveWorkspace(row.session, index, byId),
+    workspace: resolveWorkspace(row.session, index, byId) ?? workspaceByPath(workspaces, row.session.cwd),
   }));
 }
 
@@ -259,6 +288,7 @@ export function formatRelativeTime(updatedAt, now = Date.now()) {
 
 /** Human-facing session title with deterministic fallbacks. */
 export function sessionTitle(summary) {
+  if (summary?.blank) return '';
   const display = summary?.displayTitle?.trim();
   if (display) return display;
   const title = summary?.title?.trim();
@@ -372,7 +402,10 @@ export function topLevelRows(rows) {
  */
 export function activeRows(rows) {
   return topLevelRows(rows).filter(
-    (row) => row.status === 'running' || row.status === 'pending' || (row.runningChildren ?? 0) > 0,
+    (row) => row.status === 'running'
+      || row.status === 'pending'
+      || (row.runningChildren ?? 0) > 0
+      || (row.session.blank === true && (row.session.retainedBy?.mainView ?? 0) > 0),
   );
 }
 
