@@ -1035,6 +1035,8 @@ export const STYLES = `
 .dsv-footBtn:hover { background: var(--dsw-alias-interactive-bg-hover); color: var(--dsw-alias-label-primary); }
 .dsv-footIcon { display: inline-flex; }
 .dsv-settings { max-width: 560px; padding-top: 4px; }
+.dsv-settingsPage { padding-bottom: 24px; }
+.dsv-settingsReset { margin-top: 16px; }
 .dsv-settingsTitle { margin: 8px 0 12px; font-size: 15px; font-weight: 500; color: var(--dsw-alias-label-primary); }
 .dsv-settingsGrid { display: grid; gap: 0; }
 .dsv-field {

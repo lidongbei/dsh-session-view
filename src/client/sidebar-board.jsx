@@ -1,9 +1,9 @@
 import { createPortal } from 'react-dom';
 import { useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { SessionViewIcon } from './icons.jsx';
+import { LayoutIcon } from './icons.jsx';
 import { STYLES } from './styles.js';
 import { SidebarWorkspacePane } from './sidebar-workspace.jsx';
-import { getPrefs, subscribePrefs } from './prefs.js';
+import { getPrefs, setPrefs, subscribePrefs } from './prefs.js';
 
 const NARROW_WIDTH = 150;
 
@@ -12,18 +12,16 @@ function usePrefs() {
 }
 
 /**
- * Left-sidebar session workspace.
+ * Sidebar footer action that also hosts the session pane.
  *
- * The sidebar exposes `sidebar.panellist` for icon entries only, so the pane
- * cannot live in a slot next to the workspace list. Instead this component
- * anchors on the panellist icon, portals a full pane after the icon nav, and
- * hides the native `.regionArea` while the session mode is active. The native
- * browser stays mounted, so switching back is instant and lossless. When the
- * sidebar is collapsed to the icon rail, the native region is restored and
- * the pane is not rendered.
+ * The top-level panel menu is gone, so nothing in `sidebar.panellist` mounts
+ * this plugin. The footer action is the one stable mount point: it renders the
+ * mode switch and portals the full session pane after the panel nav, hiding
+ * the native workspace region while the session mode is active. Keeping the
+ * native browser mounted makes "switch back to native" instant and lossless.
  */
-export function SidebarBoardIcon({
-  size = 16,
+export function SidebarHost({
+  wide,
   t,
   useSessions,
   useSessionStatus,
@@ -38,11 +36,16 @@ export function SidebarBoardIcon({
 
   useLayoutEffect(() => {
     const anchor = anchorRef.current;
-    const nav = anchor?.closest?.('nav');
+    if (!anchor) return undefined;
+
+    // The footer lives in the sidebar's last row, not inside the panel nav.
+    // Walk up until this subtree owns the nav, then anchor the pane directly
+    // after that nav and before the native workspace region.
+    let root = anchor;
+    let nav = null;
+    while (root && !(nav = root.querySelector?.('nav'))) root = root.parentElement;
     if (!nav || !nav.parentElement) return undefined;
 
-    // Capture the native workspace region before inserting the portal host,
-    // because the host immediately becomes nav.nextElementSibling.
     const region = nav.nextElementSibling;
     regionRef.current = region;
 
@@ -81,19 +84,28 @@ export function SidebarBoardIcon({
     };
   }, [active, host]);
 
+  const next = prefs.mode === 'session' ? 'native' : 'session';
+  const label = prefs.mode === 'session' ? t('side.native') : t('side.sessionView');
+
   return (
     <>
-      <span ref={anchorRef} className="dsv-panelIcon">
-        <SessionViewIcon size={size} />
-      </span>
+      <button
+        ref={anchorRef}
+        type="button"
+        className={wide ? 'dsv-footBtn' : 'dsv-footIcon'}
+        aria-label={t(prefs.mode === 'session' ? 'side.switch.native' : 'side.switch.session')}
+        title={label}
+        onClick={() => setPrefs({ mode: next })}
+      >
+        <LayoutIcon size={16} />
+        {wide && <span>{label}</span>}
+      </button>
       {active &&
         createPortal(
           <div
             className="dsv-workarea"
             onClick={(event) => {
-              // The pane is portaled out of the panellist row's DOM, but React
-              // events still bubble through that row. Without this stop the
-              // row's select-panel handler would immediately open the panel.
+              // Portal React events still bubble through the footer row.
               event.stopPropagation();
             }}
           >

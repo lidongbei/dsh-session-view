@@ -1,6 +1,6 @@
 import { SessionView } from './session-view.jsx';
-import { SidebarBoardIcon } from './sidebar-board.jsx';
-import { SidebarModeToggle } from './sidebar-workspace.jsx';
+import { SessionViewSettings } from './settings-section.jsx';
+import { SidebarHost } from './sidebar-board.jsx';
 import { en, zh } from './locales.js';
 
 /** Stable key shared by the sidebar entry and the main panel. */
@@ -70,23 +70,6 @@ export function apply(ctx) {
     ),
   );
 
-  ctx.slots.inject('sidebar.panellist', () =>
-    ctx.slots.register(
-      {
-        name: 'sidebar.panellist',
-        id: PANEL_ID,
-        order: 10,
-        locale: NS,
-        label: () => t('panel'),
-        inject: () => ({
-          ...paneActions,
-          openPanel: () => ctx.layout.selectPanel(PANEL_ID),
-        }),
-      },
-      SidebarBoardIcon,
-    ),
-  );
-
   ctx.slots.inject('sidebar.footer.action', () =>
     ctx.slots.register(
       {
@@ -94,8 +77,25 @@ export function apply(ctx) {
         id: `${PANEL_ID}-mode`,
         locale: NS,
         order: 10,
+        inject: () => ({
+          ...paneActions,
+          openPanel: () => ctx.layout.selectPanel(PANEL_ID),
+        }),
       },
-      SidebarModeToggle,
+      SidebarHost,
+    ),
+  );
+
+  ctx.slots.inject('settings.section', () =>
+    ctx.slots.register(
+      {
+        name: 'settings.section',
+        id: PANEL_ID,
+        order: 60,
+        locale: NS,
+        label: () => t('settings.nav'),
+      },
+      SessionViewSettings,
     ),
   );
 }

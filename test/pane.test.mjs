@@ -28,7 +28,9 @@ const byId = Object.fromEntries(ids.map((id, index) => [id, {
   blank: false,
   updatedAt: 1000 - index,
 }]));
-const sessions = { ids, byId, phase: 'ready', projectionsBySession: {} };
+byId.sub = { id: 'sub', title: 'sub', displayTitle: 'Sub task', parentId: 'run1', origin: 'subagent', running: false, blank: false, updatedAt: 2000 };
+const sessionIds = [...ids, 'sub'];
+const sessions = { ids: sessionIds, byId, phase: 'ready', projectionsBySession: {} };
 const statuses = new Map([
   ['run1', { running: true, completionUnread: false }],
   ['run2', { running: true, completionUnread: false }],
@@ -39,7 +41,10 @@ const statuses = new Map([
   ['pinned', { running: false, completionUnread: false }],
 ]);
 const workspaces = {
-  items: [{ workspaceId: 'w1', title: 'App', path: 'C:/work/app', sessionIds: ids }],
+  items: [
+    { workspaceId: 'w1', title: 'App', path: 'C:/work/app', sessionIds: sessionIds },
+    { workspaceId: 'w2', title: 'Empty workspace', path: 'C:/work/empty', sessionIds: [] },
+  ],
   archivedSessionIds: [],
   pinnedSessionIds: ['pinned'],
   state: 'idle',
@@ -65,6 +70,7 @@ const props = {
   createWorkspace: () => {},
   pickDirectory: () => {},
   searchSessions: () => {},
+  openPanel: () => {},
 };
 globalThis.__DSV_PANE_HTML = renderToStaticMarkup(React.createElement(SidebarWorkspacePane, props));
 resetPrefs();
@@ -101,6 +107,11 @@ test('SidebarWorkspacePane renders pinned and a limited active group', async () 
     assert.match(active, /data-status="running"/);
     assert.match(html, /data-status="pending"/);
     assert.match(html, /data-status="done"/);
+    assert.ok(!html.includes('Sub task'), 'subagent row must not be rendered');
+    assert.ok(!html.includes('Empty workspace'), 'empty workspace must not be rendered');
+    assert.ok(!html.includes('暂无会话'), 'empty-workspace placeholder must not be rendered');
+    assert.ok(html.includes('aria-label="会话管理"'), 'missing manage-sessions button');
+    assert.ok(!html.includes('data-dsv-settings-toggle'), 'sidebar settings trigger must be gone');
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

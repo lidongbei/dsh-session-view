@@ -9,7 +9,6 @@ import {
   filterRows,
   formatRelativeTime,
   groupByWorkspace,
-  limitRows,
   moveId,
   orderKey,
   sessionTitle,
@@ -19,7 +18,7 @@ import {
   workspaceLabel,
 } from './logic.js';
 import { addToTrash } from './api.js';
-import { getPrefs, resetPrefs, setPrefs, subscribePrefs } from './prefs.js';
+import { getPrefs, setPrefs, subscribePrefs } from './prefs.js';
 import { STYLES } from './styles.js';
 import {
   ArchiveIcon,
@@ -32,7 +31,7 @@ import {
   PlusIcon,
   RestoreIcon,
   SearchIcon,
-  SettingsIcon,
+  SessionViewIcon,
   TrashIcon,
 } from './icons.jsx';
 
@@ -233,6 +232,7 @@ export function SidebarWorkspacePane({
   insertWorkspaceBefore,
   pickDirectory,
   searchSessions,
+  openPanel,
 }) {
   const prefs = usePrefs();
   const sessions = useSessions((state) => state);
@@ -245,7 +245,6 @@ export function SidebarWorkspacePane({
   const [busy, setBusy] = useState(false);
   const [menu, setMenu] = useState(null);
   const [dialog, setDialog] = useState(null);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [expandedActive, setExpandedActive] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState(() => new Set());
@@ -254,29 +253,10 @@ export function SidebarWorkspacePane({
   const dragRef = useRef(null);
   const workspaceDragRef = useRef(null);
   const searchRef = useRef(null);
-  const settingsRef = useRef(null);
 
   useEffect(() => {
     if (searchOpen) searchRef.current?.focus();
   }, [searchOpen]);
-
-  useEffect(() => {
-    if (!settingsOpen) return undefined;
-    const onPointerDown = (event) => {
-      if (settingsRef.current?.contains(event.target)) return;
-      if (event.target.closest?.('[data-dsv-settings-toggle]')) return;
-      setSettingsOpen(false);
-    };
-    const onKeyDown = (event) => {
-      if (event.key === 'Escape') setSettingsOpen(false);
-    };
-    document.addEventListener('pointerdown', onPointerDown);
-    document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown);
-      document.removeEventListener('keydown', onKeyDown);
-    };
-  }, [settingsOpen]);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 60_000);
@@ -325,7 +305,9 @@ export function SidebarWorkspacePane({
     if (!sessions || !workspaces) return [];
     const candidates = buildCandidates(sessions, workspaces.archivedSessionIds);
     const rows = buildRows(candidates, sessions.byId ?? {}, workspaces);
-    return annotateRows(rows, statuses);
+    // Subagent sessions stay in the row graph while annotating so their parent
+    // can show a running-children count, but they are never shown as rows.
+    return annotateRows(rows, statuses).filter((row) => row.session.origin !== 'subagent');
   }, [sessions, statuses, workspaces]);
 
   const pinnedSet = useMemo(() => new Set(workspaces?.pinnedSessionIds ?? []), [workspaces?.pinnedSessionIds]);
@@ -380,17 +362,23 @@ export function SidebarWorkspacePane({
       return [{ workspace: null, depth: 0, rows, key: '__flat' }];
     }
     const built = groupByWorkspace(restRows, workspaces, prefs.nestWorkspaces);
-    return built.map((group) => {
-      const key = group.workspace?.workspaceId ?? '__none';
-      const sorted =
-        prefs.sort === 'manual' ? applyFamilyOrder(group.rows, prefs.manualOrder[key]) : sortFamilies(group.rows, byUpdated);
-      return { ...group, rows: sorted, key };
-    });
+    return built
+      .map((group) => {
+        const key = group.workspace?.workspaceId ?? '__none';
+        const sorted =
+          prefs.sort === 'manual' ? applyFamilyOrder(group.rows, prefs.manualOrder[key]) : sortFamilies(group.rows, byUpdated);
+        return { ...group, rows: sorted, key };
+      })
+      // A workspace with nothing to show is not rendered at all: an empty
+      // "No sessions yet" row under every workspace is just noise here.
+      .filter((group) => group.rows.length > 0);
   }, [restRows, workspaces, prefs.layout, prefs.nestWorkspaces, prefs.sort, prefs.manualOrder]);
 
   const archived = useMemo(() => {
     if (prefs.archivedFilter === 'hide') return [];
-    const rows = archivedRows(sessions, workspaces?.archivedSessionIds);
+    const rows = archivedRows(sessions, workspaces?.archivedSessionIds).filter(
+      (row) => row.session.origin !== 'subagent',
+    );
     return query.trim() ? filterRows(rows, { query: query.trim() }) : rows;
   }, [sessions, workspaces?.archivedSessionIds, prefs.archivedFilter, query]);
 
@@ -501,11 +489,6 @@ export function SidebarWorkspacePane({
     dragRef.current = row.session.id;
     event.dataTransfer.effectAllowed = 'move';
     event.dataTransfer.setData('text/plain', row.session.id);
-  };
-
-  const openSettings = () => {
-    setSettingsOpen((prev) => !prev);
-    setMenu(null);
   };
 
   const rowActions = (row, archivedRow = false) => {
@@ -776,74 +759,6 @@ export function SidebarWorkspacePane({
 
   const searchActive = query.trim().length > 0;
 
-  const settings = (
-    <div ref={settingsRef} className="dsv-sideSettings" role="group" aria-label={t('settings.title')}>
-      <label className="dsv-sideField">
-        <span>{t('settings.mode')}</span>
-        <select value={prefs.mode} onChange={(event) => setPrefs({ mode: event.target.value })}>
-          <option value="session">{t('settings.mode.session')}</option>
-          <option value="native">{t('settings.mode.native')}</option>
-        </select>
-      </label>
-      <label className="dsv-sideField">
-        <span>{t('settings.activeLimit')}</span>
-        <input
-          type="number"
-          min="0"
-          max="50"
-          value={prefs.activeLimit}
-          onChange={(event) => setPrefs({ activeLimit: Number(event.target.value) })}
-        />
-      </label>
-      <label className="dsv-sideField">
-        <span>{t('settings.workspaceLimit')}</span>
-        <input
-          type="number"
-          min="0"
-          max="50"
-          value={prefs.workspaceLimit}
-          onChange={(event) => setPrefs({ workspaceLimit: Number(event.target.value) })}
-        />
-      </label>
-      <label className="dsv-sideField">
-        <span>{t('settings.layout')}</span>
-        <select value={prefs.layout} onChange={(event) => setPrefs({ layout: event.target.value })}>
-          <option value="grouped">{t('settings.layout.grouped')}</option>
-          <option value="flat">{t('settings.layout.flat')}</option>
-        </select>
-      </label>
-      <label className="dsv-sideField">
-        <span>{t('settings.sort')}</span>
-        <select value={prefs.sort} onChange={(event) => setPrefs({ sort: event.target.value })}>
-          <option value="updated">{t('settings.sort.updated')}</option>
-          <option value="manual">{t('settings.sort.manual')}</option>
-        </select>
-      </label>
-      <label className="dsv-sideField">
-        <span>{t('settings.archived')}</span>
-        <select value={prefs.archivedFilter} onChange={(event) => setPrefs({ archivedFilter: event.target.value })}>
-          <option value="hide">{t('settings.archived.hide')}</option>
-          <option value="show">{t('settings.archived.show')}</option>
-          <option value="only">{t('settings.archived.only')}</option>
-        </select>
-      </label>
-      <label className="dsv-sideCheck">
-        <input type="checkbox" checked={prefs.showIdle} onChange={(event) => setPrefs({ showIdle: event.target.checked })} />
-        <span>{t('settings.showIdle')}</span>
-      </label>
-      <label className="dsv-sideCheck">
-        <input type="checkbox" checked={prefs.nestWorkspaces} onChange={(event) => setPrefs({ nestWorkspaces: event.target.checked })} />
-        <span>{t('settings.nest')}</span>
-      </label>
-      <div className="dsv-sideSettingsFoot">
-        <span>{t('settings.hint')}</span>
-        <button type="button" className="dsv-sideTextBtn" onClick={() => resetPrefs()}>
-          {t('settings.reset')}
-        </button>
-      </div>
-    </div>
-  );
-
   return (
     <div className="dsv-side" onClick={(event) => event.stopPropagation()}>
       <style>{STYLES}</style>
@@ -894,7 +809,6 @@ export function SidebarWorkspacePane({
                 aria-label={t('side.search')}
                 title={t('side.search')}
                 onClick={() => {
-                  setSettingsOpen(false);
                   setMenu(null);
                   setSearchOpen(true);
                 }}
@@ -916,13 +830,11 @@ export function SidebarWorkspacePane({
               <button
                 type="button"
                 className="dsv-sideIconBtn"
-                data-dsv-settings-toggle
-                aria-expanded={settingsOpen}
-                aria-label={t('settings.title')}
-                title={t('settings.title')}
-                onClick={openSettings}
+                aria-label={t('side.manage')}
+                title={t('side.manage')}
+                onClick={() => openPanel?.()}
               >
-                <SettingsIcon size={14} />
+                <SessionViewIcon size={14} />
               </button>
               <button
                 type="button"
@@ -938,7 +850,6 @@ export function SidebarWorkspacePane({
         )}
       </header>
 
-      {settingsOpen && settings}
       {flash && <div className="dsv-sideFlash" role="status">{flash}</div>}
 
       <div className="dsv-sideScroll">
@@ -1034,7 +945,7 @@ export function SidebarWorkspacePane({
               </section>
             )}
 
-            {annotated.length === 0 && (
+            {activeRowsView.length === 0 && pinnedRows.length === 0 && groups.length === 0 && archived.length === 0 && (
               <div className="dsv-sideEmpty">
                 <span>{t('empty.none')}</span>
                 <span className="dsv-sideHint">{t('empty.noneHint')}</span>
@@ -1138,23 +1049,5 @@ export function SidebarWorkspacePane({
         />
       )}
     </div>
-  );
-}
-
-export function SidebarModeToggle({ wide, t }) {
-  const prefs = usePrefs();
-  const next = prefs.mode === 'session' ? 'native' : 'session';
-  const label = prefs.mode === 'session' ? t('side.native') : t('side.sessionView');
-  return (
-    <button
-      type="button"
-      className={wide ? 'dsv-footBtn' : 'dsv-footIcon'}
-      aria-label={t(prefs.mode === 'session' ? 'side.switch.native' : 'side.switch.session')}
-      title={label}
-      onClick={() => setPrefs({ mode: next })}
-    >
-      <LayoutIcon size={16} />
-      {wide && <span>{label}</span>}
-    </button>
   );
 }

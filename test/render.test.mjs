@@ -54,7 +54,7 @@ const props = {
 globalThis.__DSV_HTML = renderToStaticMarkup(React.createElement(SessionView, props));
 `;
 
-test('SessionView renders status colors, sub-session indentation and translations', async () => {
+test('SessionView renders status colors and hides subagent rows', async () => {
   const dir = await mkdtemp(join(root, 'test', '.render-'));
   const outfile = join(dir, 'fixture.mjs');
   try {
@@ -75,27 +75,26 @@ test('SessionView renders status colors, sub-session indentation and translation
     delete globalThis.__DSV_HTML;
     assert.equal(typeof html, 'string');
 
-    for (const text of ['会话视图', 'Parent task', 'Child task', 'Finished task', 'Waiting task']) {
+    for (const text of ['会话视图', 'Parent task', 'Finished task', 'Waiting task']) {
       assert.ok(html.includes(text), `missing ${text}`);
     }
+    assert.ok(!html.includes('Child task'), 'subagent row must not be rendered');
     assert.ok(html.includes('运行中'));
     assert.ok(html.includes('待处理'));
     assert.ok(html.includes('已完成'));
     assert.ok(html.includes('空闲'));
-    assert.ok(html.includes('等待批准'));
-    assert.ok(html.includes('子会话'));
-    assert.ok(html.includes('4 个会话'));
+    assert.ok(!html.includes('子会话'), 'subagent tag must not be rendered');
+    assert.ok(html.includes('3 个会话'));
 
     assert.match(html, /data-status="running"/);
     assert.match(html, /data-status="pending"/);
     assert.match(html, /data-status="done"/);
-    assert.match(html, /data-depth="1"/);
-    assert.match(html, /--dsv-depth:1/);
+    assert.ok(!html.includes('data-depth="1"'), 'subagent depth must not be rendered');
     assert.match(html, /role="list"/);
     assert.match(html, /aria-pressed="true"/);
     assert.ok(html.includes('aria-label="状态筛选"'), 'missing translated status-group label');
     assert.ok(html.includes('aria-label="工作区"'), 'missing translated workspace label');
-    assert.ok(html.indexOf('Parent task') < html.indexOf('Child task'));
+    assert.ok(html.indexOf('Parent task') >= 0);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
