@@ -34,6 +34,7 @@ export function apply(ctx) {
     renameWorkspace: (workspaceId, title) => ctx.workspaces.rename(workspaceId, title),
     deleteWorkspace: (workspaceId) => ctx.workspaces.delete(workspaceId),
     createWorkspace: (options) => ctx.workspaces.create(options),
+    insertWorkspaceBefore: (workspaceId, beforeWorkspaceId) => ctx.workspaces.insertBefore(workspaceId, beforeWorkspaceId),
   };
 
   const paneActions = {

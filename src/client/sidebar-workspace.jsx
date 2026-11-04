@@ -230,6 +230,7 @@ export function SidebarWorkspacePane({
   renameWorkspace,
   deleteWorkspace,
   createWorkspace,
+  insertWorkspaceBefore,
   pickDirectory,
   searchSessions,
 }) {
@@ -245,11 +246,37 @@ export function SidebarWorkspacePane({
   const [menu, setMenu] = useState(null);
   const [dialog, setDialog] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [expandedActive, setExpandedActive] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState(() => new Set());
   const [collapsedGroups, setCollapsedGroups] = useState(() => new Set());
   const [search, setSearch] = useState({ state: 'idle', items: [], error: '' });
   const dragRef = useRef(null);
+  const workspaceDragRef = useRef(null);
+  const searchRef = useRef(null);
+  const settingsRef = useRef(null);
+
+  useEffect(() => {
+    if (searchOpen) searchRef.current?.focus();
+  }, [searchOpen]);
+
+  useEffect(() => {
+    if (!settingsOpen) return undefined;
+    const onPointerDown = (event) => {
+      if (settingsRef.current?.contains(event.target)) return;
+      if (event.target.closest?.('[data-dsv-settings-toggle]')) return;
+      setSettingsOpen(false);
+    };
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') setSettingsOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [settingsOpen]);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 60_000);
@@ -563,17 +590,16 @@ export function SidebarWorkspacePane({
   const renderRow = (row, options = {}) => {
     const { archivedRow = false } = options;
     const open = () => openSession(row.session.id);
-    const meta = [
-      row.depth > 0 ? t('row.child') : '',
-      formatTime(t, row.session.updatedAt, now),
-    ].filter(Boolean).join(' · ');
+    const isPinned = pinnedSet.has(row.session.id);
+    const time = formatTime(t, row.session.updatedAt, now);
     return (
       <div
         key={row.session.id}
         className="dsv-sideRow"
         data-depth={row.depth ?? 0}
         data-archived={archivedRow || undefined}
-        style={{ '--dsv-depth': row.depth ?? 0 }}
+        data-pinned={isPinned || undefined}
+        style={{ '--dsv-indent': `${(row.depth ?? 0) * 12}px` }}
         draggable={prefs.sort === 'manual' && !query.trim() && !archivedRow}
         onDragStart={(event) => startDrag(event, row)}
         onDragOver={(event) => {
@@ -582,15 +608,23 @@ export function SidebarWorkspacePane({
         onDrop={(event) => onDropRow(event, row)}
       >
         <button type="button" className="dsv-sideOpen" onClick={open} title={row.title}>
-          <Dot status={archivedRow ? 'idle' : row.status} />
-          <span className="dsv-sideRowMain">
-            <span className="dsv-sideRowTitle">{row.title}</span>
-            <span className="dsv-sideRowMeta">
-              {meta}
-              {row.runningChildren > 0 && ` · ${t('row.runningChildren', { n: row.runningChildren })}`}
-            </span>
+          <span className="dsv-sideSlot">
+            <Dot status={archivedRow ? 'idle' : row.status} />
           </span>
+          <span className="dsv-sideRowTitle">{row.title}</span>
+          {row.depth > 0 && <span className="dsv-sideTag">{t('row.child')}</span>}
+          {row.runningChildren > 0 && (
+            <span className="dsv-sideRunning" title={t('row.runningChildren', { n: row.runningChildren })}>
+              +{row.runningChildren}
+            </span>
+          )}
+          <span className="dsv-sideTime">{time}</span>
         </button>
+        {!archivedRow && isPinned && (
+          <span className="dsv-sidePin" aria-hidden="true">
+            <PinIcon size={12} />
+          </span>
+        )}
         {rowActions(row, archivedRow)}
       </div>
     );
@@ -603,7 +637,31 @@ export function SidebarWorkspacePane({
     const collapsed = collapsedGroups.has(key);
     const menuOpen = menu?.kind === 'workspace' && menu.id === key;
     return (
-      <div className="dsv-sideGroupHead" style={{ paddingLeft: group.depth * 10 }}>
+      <div
+        className="dsv-sideGroupHead"
+        style={{ paddingLeft: 4 + group.depth * 12 }}
+        draggable={!!workspace && prefs.sort === 'manual' && !query.trim()}
+        onDragStart={(event) => {
+          if (!workspace || prefs.sort !== 'manual' || query.trim()) return;
+          workspaceDragRef.current = workspace.workspaceId;
+          event.dataTransfer.effectAllowed = 'move';
+          event.dataTransfer.setData('application/x-dsv-workspace', workspace.workspaceId);
+        }}
+        onDragOver={(event) => {
+          const from = workspaceDragRef.current;
+          if (from && workspace && from !== workspace.workspaceId) event.preventDefault();
+        }}
+        onDrop={(event) => {
+          const from = workspaceDragRef.current;
+          workspaceDragRef.current = null;
+          if (!from || !workspace || from === workspace.workspaceId) return;
+          event.preventDefault();
+          insertWorkspaceBefore?.(from, workspace.workspaceId);
+        }}
+        onDragEnd={() => {
+          workspaceDragRef.current = null;
+        }}
+      >
         {collapsable ? (
           <button
             type="button"
@@ -615,7 +673,9 @@ export function SidebarWorkspacePane({
             <span className="dsv-sideChevron" data-collapsed={collapsed}>
               {collapsed ? <ChevronRightIcon size={10} /> : <ChevronDownIcon size={10} />}
             </span>
-            <FolderIcon size={12} />
+            <span className="dsv-sideFolder">
+              <FolderIcon size={14} />
+            </span>
             <span className="dsv-sideGroupTitle">{workspaceLabel(workspace)}</span>
             <span className="dsv-sideCount">{group.rows.length}</span>
           </button>
@@ -690,6 +750,7 @@ export function SidebarWorkspacePane({
               <button
                 type="button"
                 className="dsv-sideEmptyWorkspace"
+                style={{ paddingLeft: 28 + group.depth * 12 }}
                 onClick={() => group.workspace && startSession(group.workspace.workspaceId)}
               >
                 {t('side.emptyWorkspace')}
@@ -697,7 +758,12 @@ export function SidebarWorkspacePane({
               </button>
             )}
             {hidden && (
-              <button type="button" className="dsv-sideMore" onClick={() => showMore(group.key)}>
+              <button
+                type="button"
+                className="dsv-sideMore"
+                style={{ paddingLeft: 28 + group.depth * 12 }}
+                onClick={() => showMore(group.key)}
+              >
                 {t('side.more')}
                 <ChevronDownIcon size={11} />
               </button>
@@ -711,7 +777,7 @@ export function SidebarWorkspacePane({
   const searchActive = query.trim().length > 0;
 
   const settings = (
-    <div className="dsv-sideSettings" role="group" aria-label={t('settings.title')}>
+    <div ref={settingsRef} className="dsv-sideSettings" role="group" aria-label={t('settings.title')}>
       <label className="dsv-sideField">
         <span>{t('settings.mode')}</span>
         <select value={prefs.mode} onChange={(event) => setPrefs({ mode: event.target.value })}>
@@ -782,57 +848,94 @@ export function SidebarWorkspacePane({
     <div className="dsv-side" onClick={(event) => event.stopPropagation()}>
       <style>{STYLES}</style>
       <header className="dsv-sideHead">
-        <div className="dsv-sideTitleRow">
-          <span className="dsv-sideTitle">{t('side.title')}</span>
-          <div className="dsv-sideHeadActions">
-            <button type="button" className="dsv-sideIconBtn" aria-label={t('side.new')} title={t('side.new')} onClick={() => startSession()}>
-              <PlusIcon size={14} />
-            </button>
+        {searchOpen ? (
+          <div className="dsv-sideSearch">
             <button
               type="button"
-              className="dsv-sideIconBtn"
-              aria-label={t('side.addWorkspace')}
-              title={t('side.addWorkspace')}
-              onClick={() => setDialog({ kind: 'addWorkspace' })}
+              className="dsv-sideSearchIcon"
+              aria-label={t('side.search')}
+              onClick={() => searchRef.current?.focus()}
             >
-              <FolderIcon size={14} />
+              <SearchIcon size={14} />
             </button>
+            <input
+              ref={searchRef}
+              type="search"
+              value={query}
+              placeholder={t('side.search')}
+              aria-label={t('side.search')}
+              onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Escape') {
+                  if (query) setQuery('');
+                  else setSearchOpen(false);
+                }
+              }}
+            />
             <button
               type="button"
-              className="dsv-sideIconBtn"
-              aria-expanded={settingsOpen}
-              aria-label={t('settings.title')}
-              title={t('settings.title')}
-              onClick={openSettings}
+              className="dsv-sideClear"
+              aria-label={query ? t('side.clear') : t('side.closeSearch')}
+              onClick={() => {
+                if (query) setQuery('');
+                else setSearchOpen(false);
+              }}
             >
-              <SettingsIcon size={14} />
-            </button>
-            <button
-              type="button"
-              className="dsv-sideIconBtn"
-              aria-label={t('side.switch.native')}
-              title={t('side.switch.native')}
-              onClick={() => setPrefs({ mode: 'native' })}
-            >
-              <LayoutIcon size={14} />
-            </button>
-          </div>
-        </div>
-        <label className="dsv-sideSearch">
-          <SearchIcon size={12} />
-          <input
-            type="search"
-            value={query}
-            placeholder={t('side.search')}
-            aria-label={t('side.search')}
-            onChange={(event) => setQuery(event.target.value)}
-          />
-          {query && (
-            <button type="button" className="dsv-sideClear" aria-label={t('side.clear')} onClick={() => setQuery('')}>
               ×
             </button>
-          )}
-        </label>
+          </div>
+        ) : (
+          <div className="dsv-sideTitleRow">
+            <span className="dsv-sideTitle">{t('side.title')}</span>
+            <div className="dsv-sideHeadActions">
+              <button
+                type="button"
+                className="dsv-sideIconBtn"
+                aria-label={t('side.search')}
+                title={t('side.search')}
+                onClick={() => {
+                  setSettingsOpen(false);
+                  setMenu(null);
+                  setSearchOpen(true);
+                }}
+              >
+                <SearchIcon size={14} />
+              </button>
+              <button type="button" className="dsv-sideIconBtn" aria-label={t('side.new')} title={t('side.new')} onClick={() => startSession()}>
+                <PlusIcon size={14} />
+              </button>
+              <button
+                type="button"
+                className="dsv-sideIconBtn"
+                aria-label={t('side.addWorkspace')}
+                title={t('side.addWorkspace')}
+                onClick={() => setDialog({ kind: 'addWorkspace' })}
+              >
+                <FolderIcon size={14} />
+              </button>
+              <button
+                type="button"
+                className="dsv-sideIconBtn"
+                data-dsv-settings-toggle
+                aria-expanded={settingsOpen}
+                aria-label={t('settings.title')}
+                title={t('settings.title')}
+                onClick={openSettings}
+              >
+                <SettingsIcon size={14} />
+              </button>
+              <button
+                type="button"
+                className="dsv-sideIconBtn"
+                aria-label={t('side.switch.native')}
+                title={t('side.switch.native')}
+                onClick={() => setPrefs({ mode: 'native' })}
+              >
+                <LayoutIcon size={14} />
+              </button>
+            </div>
+          </div>
+        )}
       </header>
 
       {settingsOpen && settings}
@@ -841,7 +944,7 @@ export function SidebarWorkspacePane({
       <div className="dsv-sideScroll">
         {searchActive ? (
           <section className="dsv-sideGroup" aria-label={t('side.searchResults')}>
-            <div className="dsv-sideGroupHead">
+            <div className="dsv-sideGroupHead dsv-sideSectionHead">
               <div className="dsv-sideGroupToggle">
                 <span className="dsv-sideGroupTitle">{t('side.searchResults')}</span>
                 <span className="dsv-sideCount">{localMatches.length + contentHits.length}</span>
@@ -881,7 +984,7 @@ export function SidebarWorkspacePane({
           <>
             {prefs.archivedFilter !== 'only' && activeRowsView.length > 0 && (
               <section className="dsv-sideGroup" aria-label={t('side.active')}>
-                <div className="dsv-sideGroupHead">
+                <div className="dsv-sideGroupHead dsv-sideSectionHead">
                   <div className="dsv-sideGroupToggle">
                     <Dot status="running" />
                     <span className="dsv-sideGroupTitle">{t('side.active')}</span>
@@ -899,7 +1002,7 @@ export function SidebarWorkspacePane({
 
             {prefs.archivedFilter !== 'only' && pinnedRows.length > 0 && (
               <section className="dsv-sideGroup" aria-label={t('section.pinned')}>
-                <div className="dsv-sideGroupHead">
+                <div className="dsv-sideGroupHead dsv-sideSectionHead">
                   <div className="dsv-sideGroupToggle">
                     <PinIcon size={11} />
                     <span className="dsv-sideGroupTitle">{t('section.pinned')}</span>
@@ -916,7 +1019,7 @@ export function SidebarWorkspacePane({
 
             {(prefs.archivedFilter === 'show' || prefs.archivedFilter === 'only') && (
               <section className="dsv-sideGroup" aria-label={t('side.archived')}>
-                <div className="dsv-sideGroupHead">
+                <div className="dsv-sideGroupHead dsv-sideSectionHead">
                   <div className="dsv-sideGroupToggle">
                     <ArchiveIcon size={11} />
                     <span className="dsv-sideGroupTitle">{t('side.archived')}</span>
