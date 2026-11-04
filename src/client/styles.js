@@ -872,6 +872,12 @@ export const STYLES = `
 }
 .dsv-sideRunning { flex: none; margin-right: 4px; color: var(--dsw-alias-state-business-primary); font-size: 10px; font-variant-numeric: tabular-nums; }
 .dsv-sideTime { flex: none; margin-left: 6px; color: var(--dsw-alias-label-tertiary); font-size: 10px; line-height: 16px; font-variant-numeric: tabular-nums; }
+.dsv-sideWaiting { flex: none; margin-left: 6px; color: var(--dsw-alias-state-warn-primary); font-size: 10px; line-height: 16px; }
+.dsv-side[data-compact="true"] .dsv-sideRow,
+.dsv-side[data-compact="true"] .dsv-sideOpen { min-height: 26px; height: 26px; }
+.dsv-side[data-compact="true"] .dsv-sideRowTitle { font-size: 13px; line-height: 18px; }
+.dsv-side[data-compact="true"] .dsv-sideTag,
+.dsv-side[data-compact="true"] .dsv-sideTime { display: none; }
 .dsv-sidePin { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 16px; height: 20px; margin-left: 6px; color: var(--dsw-alias-label-caption); }
 .dsv-sideRowActions {
   position: absolute;
@@ -890,8 +896,10 @@ export const STYLES = `
 .dsv-sideRow:focus-within .dsv-sideRowActions { opacity: 1; pointer-events: auto; }
 .dsv-sideRowActions .dsv-sideIconBtn { width: 20px; height: 20px; }
 .dsv-sideRow:hover .dsv-sideTime,
+.dsv-sideRow:hover .dsv-sideWaiting,
 .dsv-sideRow:hover .dsv-sidePin,
 .dsv-sideRow:focus-within .dsv-sideTime,
+.dsv-sideRow:focus-within .dsv-sideWaiting,
 .dsv-sideRow:focus-within .dsv-sidePin { display: none; }
 .dsv-sideMore {
   display: flex;
@@ -988,6 +996,7 @@ export const STYLES = `
 .dsv-sideClear { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border: 0; border-radius: var(--dsw-radius-sm, 6px); background: transparent; color: var(--dsw-alias-label-tertiary); cursor: pointer; }
 .dsv-sideClear:hover { background: var(--dsw-alias-interactive-bg-hover); }
 .dsv-menuWrap { position: absolute; top: 26px; right: 2px; z-index: 70; }
+.dsv-contextMenu { position: fixed; z-index: 140; min-width: 184px; padding: 5px; }
 .dsv-menu {
   min-width: 156px;
   padding: 4px;

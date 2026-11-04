@@ -7,6 +7,7 @@ import {
   limitRows,
   moveId,
   orderKey,
+  watermarkLimit,
   workspaceTree,
 } from '../src/client/logic.js';
 import { DEFAULT_PREFS, getPrefs, resetPrefs, setPrefs } from '../src/client/prefs.js';
@@ -41,6 +42,22 @@ test('preferences default to session mode and clamp invalid input', () => {
 
   setPrefs({ manualOrder: { __flat: ['a', 3, 'b'] } });
   assert.deepEqual(getPrefs().manualOrder.__flat, ['a', 'b']);
+
+  assert.equal(getPrefs().showSubagents, false);
+  assert.equal(getPrefs().showEmptyWorkspaces, false);
+  assert.equal(getPrefs().showTimes, true);
+  setPrefs({
+    showSubagents: true,
+    showEmptyWorkspaces: true,
+    showTimes: false,
+    compact: true,
+    collapsedGroups: ['w1', 3, 'w2'],
+  });
+  assert.equal(getPrefs().showSubagents, true);
+  assert.equal(getPrefs().showEmptyWorkspaces, true);
+  assert.equal(getPrefs().showTimes, false);
+  assert.equal(getPrefs().compact, true);
+  assert.deepEqual(getPrefs().collapsedGroups, ['w1', 'w2']);
 
   resetPrefs();
   assert.equal(getPrefs().mode, 'session');
@@ -123,4 +140,19 @@ test('manual ordering moves pinned rows and keeps unknown rows last', () => {
   );
   assert.deepEqual(moveId(['a', 'b', 'c'], 'c', 'a'), ['c', 'a', 'b']);
   assert.deepEqual(moveId(['a', 'b', 'c'], 'a', 'missing'), ['b', 'c', 'a']);
+});
+
+
+test('watermarkLimit raises the fold to the last active or unread row', () => {
+  const rows = [
+    row('a'), row('b'), row('c'), row('d'), row('e'), row('f'),
+  ];
+  assert.equal(watermarkLimit(rows, 3), 3);
+  rows[6] = row('g', { status: 'running' });
+  assert.equal(watermarkLimit(rows, 3), 7);
+  rows[1] = row('b', { status: 'done' });
+  assert.equal(watermarkLimit(rows, 3), 7);
+  assert.equal(watermarkLimit(rows, 0), 0);
+  const long = Array.from({ length: 60 }, (_, index) => row(`x${index}`, index === 25 ? { status: 'pending' } : {}));
+  assert.equal(watermarkLimit(long, 5), 26);
 });

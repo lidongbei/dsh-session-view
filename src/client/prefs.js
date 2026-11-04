@@ -14,11 +14,16 @@ export const DEFAULT_PREFS = Object.freeze({
   activeLimit: 5,
   workspaceLimit: 5,
   showIdle: true,
+  showSubagents: false,
+  showEmptyWorkspaces: false,
+  showTimes: true,
+  compact: false,
   archivedFilter: 'hide',
   layout: 'grouped',
   sort: 'updated',
   nestWorkspaces: true,
   manualOrder: Object.freeze({}),
+  collapsedGroups: Object.freeze([]),
 });
 
 const MODES = new Set(['session', 'native']);
@@ -39,25 +44,37 @@ function sanitize(raw) {
       manualOrder[key] = ids.filter((id) => typeof id === 'string');
     }
   }
+  const collapsedGroups = Array.isArray(value.collapsedGroups)
+    ? value.collapsedGroups.filter((key) => typeof key === 'string')
+    : [];
   return {
     mode: MODES.has(value.mode) ? value.mode : DEFAULT_PREFS.mode,
     activeLimit: clampLimit(value.activeLimit, DEFAULT_PREFS.activeLimit),
     workspaceLimit: clampLimit(value.workspaceLimit, DEFAULT_PREFS.workspaceLimit),
     showIdle: value.showIdle !== false,
+    showSubagents: value.showSubagents === true,
+    showEmptyWorkspaces: value.showEmptyWorkspaces === true,
+    showTimes: value.showTimes !== false,
+    compact: value.compact === true,
     archivedFilter: ARCHIVED.has(value.archivedFilter) ? value.archivedFilter : DEFAULT_PREFS.archivedFilter,
     layout: LAYOUTS.has(value.layout) ? value.layout : DEFAULT_PREFS.layout,
     sort: SORTS.has(value.sort) ? value.sort : DEFAULT_PREFS.sort,
     nestWorkspaces: value.nestWorkspaces !== false,
     manualOrder,
+    collapsedGroups,
   };
+}
+
+function fresh() {
+  return { ...DEFAULT_PREFS, manualOrder: {}, collapsedGroups: [] };
 }
 
 function load() {
   try {
     const raw = globalThis.localStorage?.getItem(KEY);
-    return raw ? sanitize(JSON.parse(raw)) : { ...DEFAULT_PREFS, manualOrder: {} };
+    return raw ? sanitize(JSON.parse(raw)) : fresh();
   } catch {
-    return { ...DEFAULT_PREFS, manualOrder: {} };
+    return fresh();
   }
 }
 
@@ -79,7 +96,7 @@ export function setPrefs(patch) {
 }
 
 export function resetPrefs() {
-  state = { ...DEFAULT_PREFS, manualOrder: {} };
+  state = fresh();
   try {
     globalThis.localStorage?.removeItem(KEY);
   } catch {

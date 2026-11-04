@@ -491,3 +491,30 @@ export function moveId(order, dragId, targetId) {
   const next = target < 0 ? [...base, dragId] : [...base.slice(0, target), dragId, ...base.slice(target)];
   return next;
 }
+
+/**
+ * How many top-level rows of a workspace stay visible before "Show more".
+ *
+ * Mirrors the native watermark: start from the configured count, then raise it
+ * far enough to include the last running, waiting, unread-complete or
+ * running-child row within the first 50. A limit of 0 means "show everything".
+ */
+export function watermarkLimit(rows, base, ceiling = 50) {
+  if (!(base > 0)) return 0;
+  const top = Array.isArray(rows) ? rows : [];
+  const end = Math.min(top.length, ceiling);
+  let qualifying = -1;
+  for (let index = 0; index < end; index += 1) {
+    const row = top[index];
+    if (!row) continue;
+    if (
+      row.status === 'running' ||
+      row.status === 'pending' ||
+      row.status === 'done' ||
+      (row.runningChildren ?? 0) > 0
+    ) {
+      qualifying = index;
+    }
+  }
+  return Math.min(Math.max(base, qualifying + 1), ceiling);
+}

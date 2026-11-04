@@ -11,10 +11,12 @@ import {
   groupByWorkspace,
   moveId,
   orderKey,
+  pendingLabelKey,
   sessionTitle,
   splitSections,
   statusLabelKey,
   topLevelRows,
+  watermarkLimit,
   workspaceLabel,
 } from './logic.js';
 import { addToTrash } from './api.js';
@@ -199,6 +201,15 @@ function Dot({ status }) {
 }
 
 function Dialog({ title, children, onClose, footer }) {
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      if (event.key !== 'Escape') return;
+      event.stopPropagation();
+      onClose();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
   return createPortal(
     <div className="dsv-dialogOverlay" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
       <div className="dsv-dialog" role="dialog" aria-modal="true" aria-labelledby="dsv-side-dialog-title">
@@ -239,6 +250,7 @@ export function SidebarWorkspacePane({
   const statuses = useSessionStatus((state) => state);
   const workspaces = useWorkspaces((state) => state);
 
+  const paneRef = useRef(null);
   const [query, setQuery] = useState('');
   const [now, setNow] = useState(() => Date.now());
   const [flash, setFlash] = useState('');
@@ -247,12 +259,15 @@ export function SidebarWorkspacePane({
   const [dialog, setDialog] = useState(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [expandedActive, setExpandedActive] = useState(false);
-  const [expandedGroups, setExpandedGroups] = useState(() => new Set());
-  const [collapsedGroups, setCollapsedGroups] = useState(() => new Set());
+  const [expandedGroups, setExpandedGroups] = useState({});
+  const [contextMenu, setContextMenu] = useState(null);
   const [search, setSearch] = useState({ state: 'idle', items: [], error: '' });
   const dragRef = useRef(null);
   const workspaceDragRef = useRef(null);
   const searchRef = useRef(null);
+  const focusedRef = useRef(null);
+
+  const collapsedGroups = useMemo(() => new Set(prefs.collapsedGroups ?? []), [prefs.collapsedGroups]);
 
   useEffect(() => {
     if (searchOpen) searchRef.current?.focus();
@@ -270,11 +285,18 @@ export function SidebarWorkspacePane({
   }, [flash]);
 
   useEffect(() => {
-    if (!menu) return undefined;
-    const close = () => setMenu(null);
+    if (!menu && !contextMenu) return undefined;
+    const close = () => {
+      setMenu(null);
+      setContextMenu(null);
+    };
     window.addEventListener('pointerdown', close);
-    return () => window.removeEventListener('pointerdown', close);
-  }, [menu]);
+    window.addEventListener('blur', close);
+    return () => {
+      window.removeEventListener('pointerdown', close);
+      window.removeEventListener('blur', close);
+    };
+  }, [menu, contextMenu]);
 
   useEffect(() => {
     const text = query.trim();
@@ -294,7 +316,7 @@ export function SidebarWorkspacePane({
           if (controller.signal.aborted) return;
           setSearch({ state: 'error', items: [], error: errorText(error) });
         });
-    }, 220);
+    }, 250);
     return () => {
       clearTimeout(timer);
       controller.abort();
@@ -304,11 +326,13 @@ export function SidebarWorkspacePane({
   const annotated = useMemo(() => {
     if (!sessions || !workspaces) return [];
     const candidates = buildCandidates(sessions, workspaces.archivedSessionIds);
-    const rows = buildRows(candidates, sessions.byId ?? {}, workspaces);
+    const built = buildRows(candidates, sessions.byId ?? {}, workspaces);
     // Subagent sessions stay in the row graph while annotating so their parent
-    // can show a running-children count, but they are never shown as rows.
-    return annotateRows(rows, statuses).filter((row) => row.session.origin !== 'subagent');
-  }, [sessions, statuses, workspaces]);
+    // can show a running-children count; the setting decides whether their own
+    // rows are rendered too.
+    const rows = annotateRows(built, statuses);
+    return prefs.showSubagents ? rows : rows.filter((row) => row.session.origin !== 'subagent');
+  }, [sessions, statuses, workspaces, prefs.showSubagents]);
 
   const pinnedSet = useMemo(() => new Set(workspaces?.pinnedSessionIds ?? []), [workspaces?.pinnedSessionIds]);
   const archivedSet = useMemo(
@@ -369,25 +393,29 @@ export function SidebarWorkspacePane({
           prefs.sort === 'manual' ? applyFamilyOrder(group.rows, prefs.manualOrder[key]) : sortFamilies(group.rows, byUpdated);
         return { ...group, rows: sorted, key };
       })
-      // A workspace with nothing to show is not rendered at all: an empty
-      // "No sessions yet" row under every workspace is just noise here.
-      .filter((group) => group.rows.length > 0);
-  }, [restRows, workspaces, prefs.layout, prefs.nestWorkspaces, prefs.sort, prefs.manualOrder]);
+      // Empty workspaces are hidden by default; the setting keeps them as a
+      // convenient "start a session here" affordance.
+      .filter((group) => prefs.showEmptyWorkspaces || group.rows.length > 0);
+  }, [restRows, workspaces, prefs.layout, prefs.nestWorkspaces, prefs.sort, prefs.manualOrder, prefs.showEmptyWorkspaces]);
 
   const archived = useMemo(() => {
     if (prefs.archivedFilter === 'hide') return [];
-    const rows = archivedRows(sessions, workspaces?.archivedSessionIds).filter(
-      (row) => row.session.origin !== 'subagent',
-    );
-    return query.trim() ? filterRows(rows, { query: query.trim() }) : rows;
-  }, [sessions, workspaces?.archivedSessionIds, prefs.archivedFilter, query]);
+    const rows = archivedRows(sessions, workspaces?.archivedSessionIds);
+    const visible = prefs.showSubagents ? rows : rows.filter((row) => row.session.origin !== 'subagent');
+    return query.trim() ? filterRows(visible, { query: query.trim() }) : visible;
+  }, [sessions, workspaces?.archivedSessionIds, prefs.archivedFilter, prefs.showSubagents, query]);
 
   const localMatches = useMemo(() => (query.trim() ? filterRows(annotated, { query: query.trim() }) : []), [annotated, query]);
   const localIds = useMemo(() => new Set(localMatches.map((row) => row.session.id)), [localMatches]);
   const contentHits = useMemo(
-    () => (search.state === 'ready' ? search.items.filter((item) => !localIds.has(item.sessionId)) : []),
-    [search.state, search.items, localIds],
+    () => (search.state === 'ready'
+      ? search.items.filter((item) => !localIds.has(item.sessionId)
+        && (prefs.showSubagents || sessions?.byId?.[item.sessionId]?.origin !== 'subagent'))
+      : []),
+    [search.state, search.items, localIds, prefs.showSubagents, sessions?.byId],
   );
+  const localDisplay = localMatches.slice(0, 20);
+  const contentDisplay = contentHits.slice(0, Math.max(0, 20 - localDisplay.length));
 
   const run = useCallback(
     async (action, successKey, params) => {
@@ -459,16 +487,32 @@ export function SidebarWorkspacePane({
   };
 
   const toggleGroup = (key) => {
-    setCollapsedGroups((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
+    const next = new Set(prefs.collapsedGroups ?? []);
+    if (next.has(key)) {
+      next.delete(key);
+    } else {
+      next.add(key);
+      // Native workspace resets the watermark when a group is collapsed.
+      setExpandedGroups((prev) => {
+        if (prev[key] === undefined) return prev;
+        const copy = { ...prev };
+        delete copy[key];
+        return copy;
+      });
+    }
+    setPrefs({ collapsedGroups: [...next] });
   };
 
   const showMore = (key) => {
-    setExpandedGroups((prev) => new Set(prev).add(key));
+    setExpandedGroups((prev) => ({ ...prev, [key]: (prev[key] ?? 0) + 5 }));
+  };
+
+  const showLess = (key) => {
+    setExpandedGroups((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
   };
 
   const onDropRow = (event, target) => {
@@ -570,11 +614,77 @@ export function SidebarWorkspacePane({
     );
   };
 
+  const closeMenus = () => {
+    setMenu(null);
+    setContextMenu(null);
+  };
+
+  const contextSessionItems = (row, archivedRow = false) => {
+    const isPinned = pinnedSet.has(row.session.id);
+    return (
+      <>
+        <button type="button" role="menuitem" onClick={() => { closeMenus(); openSession(row.session.id); }}>
+          {t('action.open')}
+        </button>
+        {!archivedRow && (
+          <button type="button" role="menuitem" onClick={() => { closeMenus(); togglePin(row); }}>
+            {t(isPinned ? 'action.unpin' : 'action.pin')}
+          </button>
+        )}
+        <button type="button" role="menuitem" onClick={() => { closeMenus(); setDialog({ kind: 'renameSession', row }); }}>
+          {t('action.rename')}
+        </button>
+        <button type="button" role="menuitem" onClick={() => { closeMenus(); run(() => forkSession(row.session.id), 'toast.forked'); }}>
+          {t('action.fork')}
+        </button>
+        <button type="button" role="menuitem" onClick={() => { closeMenus(); copyId(row); }}>
+          {t('action.copyId')}
+        </button>
+        {archivedRow ? (
+          <button type="button" role="menuitem" onClick={() => { closeMenus(); run(() => unarchiveSession(row.session.id), 'toast.restored', { n: 1 }); }}>
+            {t('action.restore')}
+          </button>
+        ) : (
+          <>
+            <button type="button" role="menuitem" onClick={() => { closeMenus(); archive(row); }}>
+              {t('action.archive')}
+            </button>
+            <button type="button" role="menuitem" className="dsv-danger" onClick={() => { closeMenus(); moveToTrash(row); }}>
+              {t('action.trash')}
+            </button>
+          </>
+        )}
+      </>
+    );
+  };
+
+  const contextWorkspaceItems = (workspace) => (
+    <>
+      <button type="button" role="menuitem" onClick={() => { closeMenus(); startSession(workspace.workspaceId); }}>
+        {t('action.newSession')}
+      </button>
+      <button type="button" role="menuitem" onClick={() => { closeMenus(); setDialog({ kind: 'renameWorkspace', workspace }); }}>
+        {t('action.renameWorkspace')}
+      </button>
+      <button type="button" role="menuitem" className="dsv-danger" onClick={() => { closeMenus(); setDialog({ kind: 'deleteWorkspace', workspace }); }}>
+        {t('action.deleteWorkspace')}
+      </button>
+    </>
+  );
+
+  const contextRow = contextMenu?.kind === 'session'
+    ? (contextMenu.archived ? archived : annotated).find((row) => row.session.id === contextMenu.id)
+    : null;
+  const contextWorkspace = contextMenu?.kind === 'workspace'
+    ? groups.map((group) => group.workspace).find((workspace) => workspace?.workspaceId === contextMenu.id)
+    : null;
+
   const renderRow = (row, options = {}) => {
     const { archivedRow = false } = options;
     const open = () => openSession(row.session.id);
     const isPinned = pinnedSet.has(row.session.id);
     const time = formatTime(t, row.session.updatedAt, now);
+    const waiting = row.status === 'pending';
     return (
       <div
         key={row.session.id}
@@ -589,8 +699,21 @@ export function SidebarWorkspacePane({
           if (prefs.sort === 'manual' && !query.trim() && !archivedRow) event.preventDefault();
         }}
         onDrop={(event) => onDropRow(event, row)}
+        onContextMenu={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          setMenu(null);
+          focusedRef.current = row.session.id;
+          setContextMenu({ kind: 'session', id: row.session.id, archived: archivedRow, x: event.clientX, y: event.clientY });
+        }}
       >
-        <button type="button" className="dsv-sideOpen" onClick={open} title={row.title}>
+        <button
+          type="button"
+          className="dsv-sideOpen"
+          onClick={open}
+          onFocus={() => { focusedRef.current = row.session.id; }}
+          title={row.title}
+        >
           <span className="dsv-sideSlot">
             <Dot status={archivedRow ? 'idle' : row.status} />
           </span>
@@ -601,7 +724,13 @@ export function SidebarWorkspacePane({
               +{row.runningChildren}
             </span>
           )}
-          <span className="dsv-sideTime">{time}</span>
+          {(prefs.showTimes || waiting) && (
+            waiting ? (
+              <span className="dsv-sideWaiting">{t(pendingLabelKey(row.pendingKind))}</span>
+            ) : (
+              <span className="dsv-sideTime">{time}</span>
+            )
+          )}
         </button>
         {!archivedRow && isPinned && (
           <span className="dsv-sidePin" aria-hidden="true">
@@ -643,6 +772,13 @@ export function SidebarWorkspacePane({
         }}
         onDragEnd={() => {
           workspaceDragRef.current = null;
+        }}
+        onContextMenu={(event) => {
+          if (!workspace) return;
+          event.preventDefault();
+          event.stopPropagation();
+          setMenu(null);
+          setContextMenu({ kind: 'workspace', id: key, x: event.clientX, y: event.clientY });
         }}
       >
         {collapsable ? (
@@ -717,11 +853,15 @@ export function SidebarWorkspacePane({
 
   const renderGroup = (group, index) => {
     const collapsed = collapsedGroups.has(group.key);
-    const limit = expandedGroups.has(group.key) ? 0 : prefs.workspaceLimit;
     const tops = topLevelRows(group.rows);
-    const limitedTops = limit > 0 ? tops.slice(0, limit) : tops;
-    const visible = takeTopFamilies(group.rows, limitedTops, 0);
-    const hidden = tops.length > limitedTops.length;
+    // Native-style watermark: active, waiting, unread-complete and
+    // running-child rows raise the fold, while "Show more" grows it in fives.
+    const floor = watermarkLimit(tops, prefs.workspaceLimit);
+    const extra = expandedGroups[group.key] ?? 0;
+    const shown = floor === 0 ? tops.length : Math.min(tops.length, floor + extra);
+    const visible = takeTopFamilies(group.rows, tops.slice(0, shown), 0);
+    const hidden = shown < tops.length;
+    const canLess = extra > 0;
     const empty = group.rows.length === 0;
     return (
       <section className="dsv-sideGroup" key={group.key} aria-label={group.workspace ? workspaceLabel(group.workspace) : t('section.all')}>
@@ -740,14 +880,14 @@ export function SidebarWorkspacePane({
                 {group.workspace ? ` · ${t('action.newSession')}` : ''}
               </button>
             )}
-            {hidden && (
+            {(hidden || canLess) && (
               <button
                 type="button"
                 className="dsv-sideMore"
                 style={{ paddingLeft: 28 + group.depth * 12 }}
-                onClick={() => showMore(group.key)}
+                onClick={() => (hidden ? showMore(group.key) : showLess(group.key))}
               >
-                {t('side.more')}
+                {t(hidden ? 'side.more' : 'side.less')}
                 <ChevronDownIcon size={11} />
               </button>
             )}
@@ -759,8 +899,57 @@ export function SidebarWorkspacePane({
 
   const searchActive = query.trim().length > 0;
 
+  useEffect(() => {
+    if (typeof document === 'undefined') return undefined;
+    const handler = (event) => {
+      const target = event.target;
+      const pane = paneRef.current;
+      const withinPane = Boolean(pane && (pane.contains(target) || pane.contains(document.activeElement)));
+      if (!withinPane && !searchOpen) return;
+      if (dialog) return;
+      const typing = target instanceof HTMLElement
+        && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
+      if (dialog) return;
+      const mod = event.ctrlKey || event.metaKey;
+      if (mod && !event.altKey && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setMenu(null);
+        setContextMenu(null);
+        setSearchOpen(true);
+        return;
+      }
+      if (typing && !(mod && event.altKey)) return;
+      if (mod && event.altKey && event.key.toLowerCase() === 'n') {
+        event.preventDefault();
+        startSession();
+        return;
+      }
+      const focused = annotated.find((row) => row.session.id === focusedRef.current)
+        ?? archived.find((row) => row.session.id === focusedRef.current);
+      if (!focused) return;
+      if (event.key === 'F2' || (mod && event.altKey && event.key.toLowerCase() === 'g')) {
+        event.preventDefault();
+        setMenu(null);
+        setContextMenu(null);
+        setDialog({ kind: 'renameSession', row: focused });
+      } else if (mod && event.altKey && event.key.toLowerCase() === 'f') {
+        event.preventDefault();
+        closeMenus();
+        run(() => forkSession(focused.session.id), 'toast.forked');
+      } else if (mod && event.altKey && event.key.toLowerCase() === 'a') {
+        event.preventDefault();
+        closeMenus();
+        archive(focused);
+      } else if (event.key === 'Escape' && (menu || contextMenu)) {
+        closeMenus();
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [annotated, archived, dialog, menu, contextMenu, startSession, forkSession, run, archive]);
+
   return (
-    <div className="dsv-side" onClick={(event) => event.stopPropagation()}>
+    <div ref={paneRef} className="dsv-side" data-compact={prefs.compact || undefined} onClick={(event) => event.stopPropagation()}>
       <style>{STYLES}</style>
       <header className="dsv-sideHead">
         {searchOpen ? (
@@ -858,12 +1047,12 @@ export function SidebarWorkspacePane({
             <div className="dsv-sideGroupHead dsv-sideSectionHead">
               <div className="dsv-sideGroupToggle">
                 <span className="dsv-sideGroupTitle">{t('side.searchResults')}</span>
-                <span className="dsv-sideCount">{localMatches.length + contentHits.length}</span>
+                <span className="dsv-sideCount">{localDisplay.length + contentDisplay.length}</span>
               </div>
               {search.state === 'loading' && <span className="dsv-sideHint">{t('side.searching')}</span>}
             </div>
-            {localMatches.map((row) => renderRow(row))}
-            {contentHits.map((hit) => {
+            {localDisplay.map((row) => renderRow(row))}
+            {contentDisplay.map((hit) => {
               const summary = sessions?.byId?.[hit.sessionId];
               if (!summary) return null;
               return (
@@ -882,7 +1071,7 @@ export function SidebarWorkspacePane({
               );
             })}
             {search.state === 'error' && <div className="dsv-sideHint">{search.error}</div>}
-            {localMatches.length === 0 && contentHits.length === 0 && search.state !== 'loading' && (
+            {localDisplay.length === 0 && contentDisplay.length === 0 && search.state !== 'loading' && (
               <div className="dsv-sideEmpty">
                 <span>{t('empty.filtered')}</span>
                 <button type="button" className="dsv-sideTextBtn" onClick={() => setQuery('')}>
@@ -925,7 +1114,7 @@ export function SidebarWorkspacePane({
             )}
 
             {prefs.archivedFilter !== 'only' &&
-              (prefs.showIdle || activeRowsView.length > 0 || pinnedRows.length > 0) &&
+              (prefs.showEmptyWorkspaces || prefs.showIdle || activeRowsView.length > 0 || pinnedRows.length > 0) &&
               groups.map((group, index) => renderGroup(group, index))}
 
             {(prefs.archivedFilter === 'show' || prefs.archivedFilter === 'only') && (
@@ -945,7 +1134,8 @@ export function SidebarWorkspacePane({
               </section>
             )}
 
-            {activeRowsView.length === 0 && pinnedRows.length === 0 && groups.length === 0 && archived.length === 0 && (
+            {activeRowsView.length === 0 && pinnedRows.length === 0 && archived.length === 0 &&
+              !groups.some((group) => group.rows.length > 0) && (
               <div className="dsv-sideEmpty">
                 <span>{t('empty.none')}</span>
                 <span className="dsv-sideHint">{t('empty.noneHint')}</span>
@@ -1023,6 +1213,21 @@ export function SidebarWorkspacePane({
             run(() => deleteWorkspace(workspace.workspaceId), 'toast.workspaceDeleted');
           }}
         />
+      )}
+
+      {contextMenu && (contextRow || contextWorkspace) && createPortal(
+        <div
+          className="dsv-menu dsv-contextMenu"
+          role="menu"
+          style={{
+            left: Math.min(contextMenu.x, (globalThis.innerWidth ?? 1200) - 220),
+            top: Math.min(contextMenu.y, (globalThis.innerHeight ?? 800) - 280),
+          }}
+          onPointerDown={(event) => event.stopPropagation()}
+        >
+          {contextRow ? contextSessionItems(contextRow, contextMenu.archived) : contextWorkspace ? contextWorkspaceItems(contextWorkspace) : null}
+        </div>,
+        globalThis.document.body,
       )}
 
       {dialog?.kind === 'archiveRunning' && (

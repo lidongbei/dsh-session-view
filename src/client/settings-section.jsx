@@ -18,6 +18,7 @@ export function SessionViewSettings({ t }) {
       <style>{STYLES}</style>
       <h2 className="dsv-settingsTitle">{t('settings.nav')}</h2>
       <p className="dsv-hint">{t('settings.hint')}</p>
+      <p className="dsv-hint">{t('settings.shortcuts')}</p>
 
       <div className="dsv-settingsGrid">
         <label className="dsv-field">
@@ -93,6 +94,42 @@ export function SessionViewSettings({ t }) {
           </select>
         </label>
       </div>
+
+      <label className="dsv-toggleRow">
+        <input
+          type="checkbox"
+          checked={prefs.showSubagents}
+          onChange={(event) => setPrefs({ showSubagents: event.target.checked })}
+        />
+        <span>{t('settings.showSubagents')}</span>
+      </label>
+
+      <label className="dsv-toggleRow">
+        <input
+          type="checkbox"
+          checked={prefs.showEmptyWorkspaces}
+          onChange={(event) => setPrefs({ showEmptyWorkspaces: event.target.checked })}
+        />
+        <span>{t('settings.showEmptyWorkspaces')}</span>
+      </label>
+
+      <label className="dsv-toggleRow">
+        <input
+          type="checkbox"
+          checked={prefs.showTimes}
+          onChange={(event) => setPrefs({ showTimes: event.target.checked })}
+        />
+        <span>{t('settings.showTimes')}</span>
+      </label>
+
+      <label className="dsv-toggleRow">
+        <input
+          type="checkbox"
+          checked={prefs.compact}
+          onChange={(event) => setPrefs({ compact: event.target.checked })}
+        />
+        <span>{t('settings.compact')}</span>
+      </label>
 
       <label className="dsv-toggleRow">
         <input

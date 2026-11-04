@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import {
   STATUS_LIST,
   annotateRows,
@@ -16,6 +16,7 @@ import {
   workspaceLabel,
 } from './logic.js';
 import { addToTrash, fetchTrash, purgeTrash, restoreTrash } from './api.js';
+import { getPrefs, subscribePrefs } from './prefs.js';
 import { STYLES } from './styles.js';
 import {
   ArchiveIcon,
@@ -62,6 +63,7 @@ export function SessionView({
   archiveSession,
   unarchiveSession,
 }) {
+  const prefs = useSyncExternalStore(subscribePrefs, getPrefs, getPrefs);
   const sessions = useSessions((state) => state);
   const statuses = useSessionStatus((state) => state);
   const workspaces = useWorkspaces((state) => state);
@@ -114,8 +116,9 @@ export function SessionView({
     const rows = buildRows(candidates, sessions.byId ?? {}, workspaces);
     // Keep descendant rows long enough to count running children, then drop
     // them: subagent sessions are execution detail, not management rows.
-    return annotateRows(rows, statuses).filter((row) => row.session.origin !== 'subagent');
-  }, [sessions, statuses, workspaces]);
+    const annotatedRows = annotateRows(rows, statuses);
+    return prefs.showSubagents ? annotatedRows : annotatedRows.filter((row) => row.session.origin !== 'subagent');
+  }, [sessions, statuses, workspaces, prefs.showSubagents]);
 
   const workspaceOptions = useMemo(() => {
     const byWorkspace = new Map();
@@ -145,15 +148,15 @@ export function SessionView({
     [activeRows, workspaces?.pinnedSessionIds],
   );
   const archived = useMemo(() => {
-    const rows = archivedRows(sessions, workspaces?.archivedSessionIds).filter(
-      (row) => row.session.origin !== 'subagent',
-    );
+    const all = archivedRows(sessions, workspaces?.archivedSessionIds);
+    const rows = prefs.showSubagents ? all : all.filter((row) => row.session.origin !== 'subagent');
     return rows.filter((row) => matchesQuery(row, query));
-  }, [sessions, workspaces?.archivedSessionIds, query]);
+  }, [sessions, workspaces?.archivedSessionIds, query, prefs.showSubagents]);
   const trashed = useMemo(() => {
-    const rows = trashRows(trash.items, sessions?.byId).filter((row) => row.session.origin !== 'subagent');
+    const all = trashRows(trash.items, sessions?.byId);
+    const rows = prefs.showSubagents ? all : all.filter((row) => row.session.origin !== 'subagent');
     return rows.filter((row) => matchesQuery(row, query));
-  }, [trash.items, sessions?.byId, query]);
+  }, [trash.items, sessions?.byId, query, prefs.showSubagents]);
 
   const pinnedSet = useMemo(
     () => new Set(workspaces?.pinnedSessionIds ?? []),

@@ -2,7 +2,7 @@
 
 DSH Web 的**会话视图**插件：默认接管左侧工作区块，以会话为主行展示置顶 / 活跃 / 已完成未读会话，可一键切回原生工作区；主窗口提供完整的会话管理页，偏好设置并入系统「设置」。
 
-版本 0.3.2。
+版本 0.4.0。
 
 ## 功能
 
@@ -12,10 +12,14 @@ DSH Web 的**会话视图**插件：默认接管左侧工作区块，以会话�
 - 顶部工具栏：搜索、新建会话、添加工作区、**会话管理**、切回原生工作区；设置入口已移到系统「设置 → 会话视图」。
 - **活跃会话**分组：显示运行中 / 待处理 / 有运行中子会话的顶层会话，按 `settings.activeLimit` 限制条数，支持「更多 / 收起」。
 - **置顶**分组：置顶会话始终排在最前，行尾图钉可直接置顶/取消置顶。
-- **工作区分组**：按工作区路径树形嵌套（取最长前缀父目录），每个工作区按 `settings.workspaceLimit` 限制条数；没有可显示会话的工作区整组隐藏，不再渲染「暂无会话」占位。
-- **搜索**：本地标题/路径匹配 + 防抖调用 `sessions.search` 做 Host 内容搜索，显示命中片段；支持清空。
+- **工作区分组**：按工作区路径树形嵌套（取最长前缀父目录），每个工作区按 `settings.workspaceLimit` 限制条数；默认隐藏没有可显示会话的工作区，可在系统设置打开「显示空工作区」。
+- **搜索**：本地标题/路径匹配 + 250ms 防抖调用 `sessions.search` 做 Host 内容搜索，本地与内容命中合计最多 20 条，显示命中片段；支持清空与 `Ctrl+K` 聚焦。
 - **布局与过滤**：分组 / 平铺、最近更新 / 手动排序、归档过滤（隐藏 / 显示 / 仅归档）、显示/隐藏空闲会话、工作区树形嵌套。
-- **会话行**：点击打开会话；行菜单支持置顶、重命名、派生、复制会话 ID、归档、移入回收站；子会话不在会话视图中显示，只统计父会话的「+N 个运行中」。
+- **每工作区水位**：默认显示 5 条；如果前 50 条里存在运行中 / 待处理 / 完成未读 / 有运行中子会话的会话，自动展开到最后一条活跃会话；「展开更多」每次 +5 条，「收起」回到水位。
+- **折叠持久化**：工作区分组的折叠状态写入 localStorage，刷新后保持；手动展开条数只保留在本次页面。
+- **会话行**：点击打开会话；待处理行用「等待批准 / 等待方案审核 / 等待回答」替换时间；行菜单支持置顶、重命名、派生、复制会话 ID、归档、移入回收站；子会话默认不显示，只统计父会话的「+N 个运行中」。
+- **右键管理**：会话行右键打开「打开 / 置顶 / 重命名 / 分叉 / 复制会话 ID / 归档 / 移到回收站」，工作区标题右键打开「新建会话 / 重命名工作区 / 删除工作区」；原生浏览器右键菜单被替换。
+- **快捷键**：`Ctrl+K` 搜索、`Ctrl+Alt+N` 新建会话、`F2` / `Ctrl+Alt+G` 重命名当前聚焦会话、`Ctrl+Alt+F` 派生、`Ctrl+Alt+A` 归档、`Esc` 关闭菜单/弹窗。
 - **工作区菜单**：新建、重命名、删除工作区；新建时可通过 Host 目录选择器选路径，也可手动输入。
 - **手动排序**：`sort=manual` 时可拖动会话行排序，结果按工作区保存在 localStorage；同一模式下也可拖动工作区标题调整工作区顺序。
 - **运行中归档**：归档运行中的会话时弹出「停止并归档」确认，失败信息显示在行内 footer。
@@ -46,7 +50,7 @@ DSH Web 的**会话视图**插件：默认接管左侧工作区块，以会话�
 
 ## 系统设置
 
-系统「设置 → 会话视图」分区提供：模式（会话视图 / 原版工作区）、活跃会话条数、每个工作区条数、布局、排序、归档过滤、显示空闲、工作区树形嵌套、恢复默认。设置只保存在本机浏览器 localStorage。
+系统「设置 → 会话视图」分区提供：模式（会话视图 / 原版工作区）、活跃会话条数、每个工作区条数、布局、排序、归档过滤、显示空闲、工作区树形嵌套、显示子会话、显示空工作区、显示更新时间、紧凑行高、恢复默认；并展示快捷键提示。设置只保存在本机浏览器 localStorage。
 
 ## 状态颜色
 
@@ -71,11 +75,16 @@ DSH Web 的**会话视图**插件：默认接管左侧工作区块，以会话�
   activeLimit: 5,         // 0–50，0 表示不限
   workspaceLimit: 5,      // 0–50，0 表示不限
   showIdle: true,
+  showSubagents: false,
+  showEmptyWorkspaces: false,
+  showTimes: true,
+  compact: false,
   archivedFilter: 'hide', // hide | show | only
   layout: 'grouped',      // grouped | flat
   sort: 'updated',        // updated | manual
   nestWorkspaces: true,
   manualOrder: {},        // 按分组 key 保存的会话 id 顺序
+  collapsedGroups: [],    // 折叠的工作区 id
 }
 ```
 
@@ -153,18 +162,18 @@ dsh --profile web --dump-config
 
 ```bash
 npm install
-npm test        # 12 逻辑 + 2 文案 + 7 会话管理 + 5 Host 路由 + 7 工作区/偏好 + 1 侧栏 SSR + 1 主面板 SSR + 1 构建注册 = 36
+npm test        # 12 逻辑 + 2 文案 + 7 会话管理 + 5 Host 路由 + 8 工作区/偏好 + 1 侧栏 SSR + 1 主面板 SSR + 1 构建注册 = 37
 npm run build   # esbuild -> lib/client.js（__ModuleLoader__ 包装）
 npm run check   # build + test
 ```
 
 - `src/client/prefs.js`：localStorage 偏好存储与订阅，纯数据无 React。
 - `src/client/logic.js`：纯函数（状态归并、父子分组、分区、活跃分组、工作区树、过滤、计数、相对时间、路径推导），无 React 依赖。
-- `src/client/sidebar-workspace.jsx`：接管侧栏的会话视图（分组、搜索、拖拽、菜单、对话框、会话管理入口）。
-- `src/client/sidebar-board.jsx`：Portal 定位 `nav.panelList`，隐藏/恢复原生 `.regionArea`，只在会话模式渲染接管面板；`stopPropagation` 防止 React Portal 事件冒泡触发入口行的选面板逻辑。
+- `src/client/sidebar-workspace.jsx`：接管侧栏的会话视图（分组、水位、搜索、拖拽、右键菜单、快捷键、对话框、会话管理入口）。
+- `src/client/sidebar-board.jsx`：Portal 定位 `nav.panelList`，隐藏/恢复原生 `.regionArea`，只在会话模式渲染接管面板；`stopPropagation` 防止 React Portal 事件冒泡到侧栏 footer 的点击处理。
 - `src/client/session-view.jsx`：主面板（标签页、分区、批量管理、确认框、Toast）。
 - `src/client/api.js`：回收站路由的 fetch 封装。
-- `src/client/index.jsx`：注册 `main`、`sidebar.panellist`、`sidebar.footer.action`，注册中英文字典，注入 Host 服务。
+- `src/client/index.jsx`：注册 `main`、`sidebar.footer.action`、`settings.section`，注册中英文字典，注入 Host 服务。
 - `src/client/styles.js`：组件级 CSS，全部使用 `--dsw-alias-*` 主题变量。
 - `lib/index.js`：Host 半边，注册回收站/彻底删除路由与工作区索引刷新。
 - `lib/client.js`：构建产物，通过 `window.__ModuleLoader__.load({ id, factory })` 暴露 `apply` / `inject`。
@@ -172,9 +181,11 @@ npm run check   # build + test
 ## 已知限制
 
 - 会话模式隐藏原生工作区区域（保留挂载），依赖原生侧栏 `nav.panelList` / `.regionArea` 的 DOM 结构；DSH 若改动该结构，需要同步调整定位逻辑。
-- 尚未实现键盘快捷键与 `sidebar.session.row.hover` 原生行装饰（V3 计划 phase 2）。
+- 快捷键只在侧栏获得焦点或搜索框打开时生效，避免覆盖主窗口输入；`sidebar.session.row.hover` 原生行装饰仍未接入。
+- 右键菜单替换只作用于会话视图内部的行与工作区标题，原生工作区模式保留浏览器默认菜单。
 - 列表级状态不包含 per-session 错误，因此没有红色错误点。
 - 彻底删除不可恢复；批量删除前请确认。运行中的会话/X 仍被写者占用时会被拒绝（409），而不是强制删除。
 - 内容搜索由 Host `sessions.search` 提供，失败时只保留本地匹配，不阻塞列表。
 - 相对时间每 60 秒刷新一次；侧栏宽度 <150px 时接管视图隐藏，原生区域保持隐藏，展开后恢复。
+- 会话视图默认过滤子会话；开启「显示子会话」后按父子缩进展示，但原生工作区视图仍隐藏子会话。
 - 设置保存在本机浏览器，不写入 DSH 配置。
