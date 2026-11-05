@@ -18,7 +18,7 @@ import {
   watermarkLimit,
   workspaceLabel,
 } from './logic.js';
-import { addToTrash } from './api.js';
+import { addToTrash, fetchTrash } from './api.js';
 import { getPrefs, setPrefs, subscribePrefs } from './prefs.js';
 import { STYLES } from './styles.js';
 import {
@@ -264,6 +264,7 @@ export function SidebarWorkspacePane({
   const [expandedGroups, setExpandedGroups] = useState({});
   const [contextMenu, setContextMenu] = useState(null);
   const [search, setSearch] = useState({ state: 'idle', items: [], error: '' });
+  const [trashIds, setTrashIds] = useState(() => new Set());
   const dragRef = useRef(null);
   const workspaceDragRef = useRef(null);
   const searchRef = useRef(null);
@@ -278,6 +279,24 @@ export function SidebarWorkspacePane({
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 60_000);
     return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    const load = () => {
+      fetchTrash()
+        .then((data) => {
+          if (!active) return;
+          setTrashIds(new Set((data?.items ?? []).map((item) => item.sessionId)));
+        })
+        .catch(() => {});
+    };
+    load();
+    window.addEventListener('focus', load);
+    return () => {
+      active = false;
+      window.removeEventListener('focus', load);
+    };
   }, []);
 
   useEffect(() => {
@@ -333,8 +352,9 @@ export function SidebarWorkspacePane({
     // can show a running-children count; the setting decides whether their own
     // rows are rendered too.
     const rows = annotateRows(built, statuses);
-    return prefs.showSubagents ? rows : rows.filter((row) => row.session.origin !== 'subagent');
-  }, [sessions, statuses, workspaces, prefs.showSubagents]);
+    const visible = prefs.showSubagents ? rows : rows.filter((row) => row.session.origin !== 'subagent');
+    return visible.filter((row) => !trashIds.has(row.session.id));
+  }, [sessions, statuses, workspaces, prefs.showSubagents, trashIds]);
 
   const pinnedSet = useMemo(() => new Set(workspaces?.pinnedSessionIds ?? []), [workspaces?.pinnedSessionIds]);
   const archivedSet = useMemo(
@@ -413,8 +433,9 @@ export function SidebarWorkspacePane({
     if (prefs.archivedFilter === 'hide') return [];
     const rows = archivedRows(sessions, workspaces?.archivedSessionIds);
     const visible = prefs.showSubagents ? rows : rows.filter((row) => row.session.origin !== 'subagent');
-    return query.trim() ? filterRows(visible, { query: query.trim() }) : visible;
-  }, [sessions, workspaces?.archivedSessionIds, prefs.archivedFilter, prefs.showSubagents, query]);
+    const kept = visible.filter((row) => !trashIds.has(row.session.id));
+    return query.trim() ? filterRows(kept, { query: query.trim() }) : kept;
+  }, [sessions, workspaces?.archivedSessionIds, prefs.archivedFilter, prefs.showSubagents, query, trashIds]);
 
   const localMatches = useMemo(() => (query.trim() ? filterRows(annotated, { query: query.trim() }) : []), [annotated, query]);
   const localIds = useMemo(() => new Set(localMatches.map((row) => row.session.id)), [localMatches]);
@@ -469,8 +490,8 @@ export function SidebarWorkspacePane({
     setMenu(null);
     setBusy(true);
     try {
-      await archiveSession(row.session.id);
-      await addToTrash([
+      if (!row.archived) await archiveSession(row.session.id);
+      const result = await addToTrash([
         {
           sessionId: row.session.id,
           title: row.title,
@@ -478,7 +499,14 @@ export function SidebarWorkspacePane({
           deletedAt: Date.now(),
         },
       ]);
-      setFlash(t('toast.trashed', { n: 1 }));
+      const failure = (result?.failed ?? []).find((item) => item.sessionId === row.session.id);
+      if (!failure) {
+        setTrashIds((prev) => new Set(prev).add(row.session.id));
+        // Archiving is only the first half: a trashed session must also leave
+        // the archived list, otherwise it reappears after the trash filter.
+        await unarchiveSession(row.session.id).catch(() => {});
+      }
+      setFlash(failure ? errorText(failure.error ?? failure) : t('toast.trashed', { n: 1 }));
     } catch (error) {
       if (looksRunning(error)) setDialog({ kind: 'archiveRunning', row, trash: true });
       else setFlash(errorText(error));
@@ -597,9 +625,14 @@ export function SidebarWorkspacePane({
           {t('action.copyId')}
         </button>
         {archivedRow ? (
-          <button type="button" role="menuitem" onClick={() => { closeMenus(); run(() => unarchiveSession(row.session.id), 'toast.restored', { n: 1 }); }}>
-            {t('action.restore')}
-          </button>
+          <>
+            <button type="button" role="menuitem" onClick={() => { closeMenus(); run(() => unarchiveSession(row.session.id), 'toast.restored', { n: 1 }); }}>
+              {t('action.restore')}
+            </button>
+            <button type="button" role="menuitem" className="dsv-danger" onClick={() => { closeMenus(); moveToTrash(row); }}>
+              {t('action.trash')}
+            </button>
+          </>
         ) : (
           <>
             <button type="button" role="menuitem" onClick={() => { closeMenus(); archive(row); }}>
@@ -1262,6 +1295,8 @@ export function SidebarWorkspacePane({
                 await addToTrash([
                   { sessionId: row.session.id, title: row.title, cwd: row.session.cwd ?? '', deletedAt: Date.now() },
                 ]);
+                setTrashIds((prev) => new Set(prev).add(row.session.id));
+                await unarchiveSession(row.session.id).catch(() => {});
               }
             }, trash ? 'toast.trashed' : 'toast.stoppedArchived', trash ? { n: 1 } : undefined);
           }}

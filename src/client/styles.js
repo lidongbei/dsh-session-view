@@ -469,6 +469,21 @@ export const STYLES = `
   color: var(--dsw-alias-label-tertiary);
   font-variant-numeric: tabular-nums;
 }
+.dsv-sectionSelect {
+  margin-left: auto;
+  border: 0;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.dsv-sectionSelect:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
 .dsv-row { display: flex; align-items: center; gap: 2px; }
 .dsv-check {
   flex: none;

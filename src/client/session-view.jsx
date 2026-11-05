@@ -73,6 +73,7 @@ export function SessionView({
   const [workspaceId, setWorkspaceId] = useState(ALL);
   const [status, setStatus] = useState(ALL);
   const [now, setNow] = useState(() => Date.now());
+  const [groupWorkspaces, setGroupWorkspaces] = useState(false);
   const [manage, setManage] = useState(false);
   const [selected, setSelected] = useState([]);
   const [busy, setBusy] = useState(false);
@@ -102,13 +103,18 @@ export function SessionView({
   }, []);
 
   useEffect(() => {
-    if (tab === 'trash') loadTrash();
-  }, [tab, loadTrash]);
+    loadTrash();
+  }, [loadTrash]);
 
   useEffect(() => {
     setSelected([]);
     setManage(false);
   }, [tab]);
+
+  const trashedIds = useMemo(
+    () => new Set((trash.items ?? []).map((item) => item.sessionId)),
+    [trash.items],
+  );
 
   const annotated = useMemo(() => {
     if (!sessions || !workspaces) return [];
@@ -117,8 +123,9 @@ export function SessionView({
     // Keep descendant rows long enough to count running children, then drop
     // them: subagent sessions are execution detail, not management rows.
     const annotatedRows = annotateRows(rows, statuses);
-    return prefs.showSubagents ? annotatedRows : annotatedRows.filter((row) => row.session.origin !== 'subagent');
-  }, [sessions, statuses, workspaces, prefs.showSubagents]);
+    const visible = prefs.showSubagents ? annotatedRows : annotatedRows.filter((row) => row.session.origin !== 'subagent');
+    return visible.filter((row) => !trashedIds.has(row.session.id));
+  }, [sessions, statuses, workspaces, prefs.showSubagents, trashedIds]);
 
   const workspaceOptions = useMemo(() => {
     const byWorkspace = new Map();
@@ -148,10 +155,11 @@ export function SessionView({
     [activeRows, workspaces?.pinnedSessionIds],
   );
   const archived = useMemo(() => {
-    const all = archivedRows(sessions, workspaces?.archivedSessionIds);
+    const all = archivedRows(sessions, workspaces?.archivedSessionIds)
+      .filter((row) => !trashedIds.has(row.session.id));
     const rows = prefs.showSubagents ? all : all.filter((row) => row.session.origin !== 'subagent');
     return rows.filter((row) => matchesQuery(row, query));
-  }, [sessions, workspaces?.archivedSessionIds, query, prefs.showSubagents]);
+  }, [sessions, workspaces?.archivedSessionIds, query, prefs.showSubagents, trashedIds]);
   const trashed = useMemo(() => {
     const all = trashRows(trash.items, sessions?.byId);
     const rows = prefs.showSubagents ? all : all.filter((row) => row.session.origin !== 'subagent');
@@ -221,7 +229,9 @@ export function SessionView({
 
   const trashMany = async (rows) => {
     const ids = rows.map((row) => row.session.id);
-    const archived = await Promise.allSettled(rows.map((row) => archiveSession(row.session.id)));
+    const archived = await Promise.allSettled(
+      rows.map((row) => (row.archived ? Promise.resolve() : archiveSession(row.session.id))),
+    );
     const failures = archived
       .map((result, index) => (result.status === 'rejected' ? { sessionId: ids[index], error: result.reason } : null))
       .filter(Boolean);
@@ -236,7 +246,10 @@ export function SessionView({
           })),
         );
         if (Array.isArray(result.failed)) failures.push(...result.failed);
-        const ok = result.added ?? ready.length - (result.failed?.length ?? 0);
+        const added = new Set(ready.map((row) => row.session.id));
+        for (const failed of result.failed ?? []) added.delete(failed.sessionId);
+        await Promise.allSettled([...added].map((id) => unarchiveSession(id)));
+        const ok = result.added ?? added.size;
         notify(ok === 0 ? '' : t('toast.trashed', { n: ok }), failures, ok);
         await loadTrash();
       } catch (error) {
@@ -480,35 +493,72 @@ export function SessionView({
     );
   };
 
-  const renderSection = (key, titleKey, rows) => {
+  const renderSection = (key, title, rows, selectable = false) => {
     if (rows.length === 0) return null;
+    const ids = rows.map((row) => row.session.id);
+    const allSelected = ids.length > 0 && ids.every((id) => selectedSet.has(id));
     return (
       <section className="dsv-section" key={key}>
         <div className="dsv-sectionHead">
-          <h2 className="dsv-sectionTitle">{t(titleKey)}</h2>
+          <h2 className="dsv-sectionTitle">{title}</h2>
           <span className="dsv-sectionCount">{rows.length}</span>
+          {selectable && (
+            <button
+              type="button"
+              className="dsv-sectionSelect"
+              onClick={() =>
+                setSelected((prev) => {
+                  const next = new Set(prev);
+                  if (allSelected) ids.forEach((id) => next.delete(id));
+                  else ids.forEach((id) => next.add(id));
+                  return [...next];
+                })
+              }
+            >
+              {allSelected ? t('select.clear') : t('select.group')}
+            </button>
+          )}
         </div>
-        <div className="dsv-list" role="list" aria-label={t(titleKey)}>
+        <div className="dsv-list" role="list" aria-label={title}>
           {rows.map(renderRow)}
         </div>
       </section>
     );
   };
 
+  const workspaceSections = useMemo(() => {
+    const buckets = new Map();
+    for (const row of activeRows) {
+      const workspace = row.workspace;
+      const key = workspace?.workspaceId ?? '__none';
+      if (!buckets.has(key)) {
+        buckets.set(key, {
+          key,
+          title: workspace ? workspaceLabel(workspace) : t('workspace.unknown'),
+          rows: [],
+        });
+      }
+      buckets.get(key).rows.push(row);
+    }
+    return [...buckets.values()].sort((a, b) => a.title.localeCompare(b.title, 'zh'));
+  }, [activeRows, t]);
+
   const sectionList =
     tab === 'archived'
-      ? [['archived', 'tab.archived', archived]]
+      ? [['archived', t('tab.archived'), archived]]
       : tab === 'trash'
-        ? [['trash', 'tab.trash', trashed]]
-        : status === ALL
-          ? [
-              ['pinned', 'section.pinned', sections.pinned],
-              ['running', 'section.running', sections.running],
-              ['pending', 'section.pending', sections.pending],
-              ['done', 'section.done', sections.done],
-              ['idle', 'section.idle', sections.idle],
-            ]
-          : [['all', 'section.all', activeRows]];
+        ? [['trash', t('tab.trash'), trashed]]
+        : manage && groupWorkspaces
+          ? workspaceSections.map((group) => [group.key, group.title, group.rows])
+          : status === ALL
+            ? [
+                ['pinned', t('section.pinned'), sections.pinned],
+                ['running', t('section.running'), sections.running],
+                ['pending', t('section.pending'), sections.pending],
+                ['done', t('section.done'), sections.done],
+                ['idle', t('section.idle'), sections.idle],
+              ]
+            : [['all', t('section.all'), activeRows]];
 
   const tabCounts = {
     active: annotated.length,
@@ -667,6 +717,16 @@ export function SessionView({
               {allSelected ? t('select.clear') : t('select.all')}
             </button>
             {tab === 'active' && (
+              <button
+                type="button"
+                className="dsv-btn"
+                aria-pressed={groupWorkspaces}
+                onClick={() => setGroupWorkspaces((value) => !value)}
+              >
+                {groupWorkspaces ? t('manage.byStatus') : t('manage.byWorkspace')}
+              </button>
+            )}
+            {tab === 'active' && (
               <>
                 <button
                   type="button"
@@ -698,14 +758,25 @@ export function SessionView({
               </>
             )}
             {tab === 'archived' && (
-              <button
-                type="button"
-                className="dsv-btn"
-                disabled={selected.length === 0}
-                onClick={() => restoreMany(selected)}
-              >
-                {t('batch.restore')}
-              </button>
+              <>
+                <button
+                  type="button"
+                  className="dsv-btn"
+                  disabled={selected.length === 0}
+                  onClick={() => restoreMany(selected)}
+                >
+                  {t('batch.restore')}
+                </button>
+                <button
+                  type="button"
+                  className="dsv-btn"
+                  data-tone="danger"
+                  disabled={selected.length === 0}
+                  onClick={() => requestConfirm('trash', archived.filter((row) => selectedSet.has(row.session.id)))}
+                >
+                  {t('batch.trash')}
+                </button>
+              </>
             )}
             {tab === 'trash' && (
               <>
@@ -739,7 +810,7 @@ export function SessionView({
         {empty ? (
           <div className="dsv-empty">{emptyNode}</div>
         ) : (
-          sectionList.map(([key, titleKey, rows]) => renderSection(key, titleKey, rows))
+          sectionList.map(([key, title, rows]) => renderSection(key, title, rows, manage && groupWorkspaces && tab === 'active'))
         )}
       </div>
 
