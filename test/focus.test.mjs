@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { build } from 'esbuild';
@@ -251,4 +251,12 @@ test('focus mode filters the sidebar by the selected workspaces', async () => {
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+test('focus context menu stays wired into the sidebar menu portal', async () => {
+  const source = await readFile(resolve(root, 'src/client/sidebar-workspace.jsx'), 'utf8');
+  assert.match(source, /const contextItems = contextRow/, 'context menu items must be resolved once');
+  assert.match(source, /\{contextMenu && contextItems && createPortal\(/, 'context menu portal must render every resolved kind');
+  assert.match(source, /setContextMenu\(\{ kind: 'focus', id: entry\.id/, 'focus rows must open the context menu');
+  assert.match(source, /kind === 'focus'/, 'focus kind must be recognized when resolving the menu target');
 });

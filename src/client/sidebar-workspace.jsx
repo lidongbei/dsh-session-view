@@ -590,6 +590,13 @@ export function SidebarWorkspacePane({
   const contextFocus = contextMenu?.kind === 'focus'
     ? prefs.focusGroups.find((group) => group.id === contextMenu.id) ?? null
     : null;
+  const contextItems = contextRow
+    ? contextSessionItems(contextRow, contextMenu.archived)
+    : contextWorkspace
+      ? contextWorkspaceItems(contextWorkspace)
+      : contextFocus
+        ? contextFocusItems(contextFocus)
+        : null;
 
   const sectionHead = ({ key, label, count, icon = null, collapsed, extra = null }) => (
     <div className="dsv-sideGroupHead dsv-sideSectionHead">
@@ -1262,7 +1269,7 @@ export function SidebarWorkspacePane({
         />
       )}
 
-      {contextMenu && (contextRow || contextWorkspace) && createPortal(
+      {contextMenu && contextItems && createPortal(
         <div
           className="dsv-menu dsv-contextMenu"
           role="menu"
@@ -1272,7 +1279,7 @@ export function SidebarWorkspacePane({
           }}
           onPointerDown={(event) => event.stopPropagation()}
         >
-          {contextRow ? contextSessionItems(contextRow, contextMenu.archived) : contextWorkspace ? contextWorkspaceItems(contextWorkspace) : contextFocus ? contextFocusItems(contextFocus) : null}
+          {contextItems}
         </div>,
         globalThis.document.body,
       )}
