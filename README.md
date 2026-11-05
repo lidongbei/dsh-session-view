@@ -2,7 +2,7 @@
 
 DSH Web 的**会话视图**插件：默认接管左侧工作区块，以会话为主行展示置顶 / 活跃 / 最近 / 已完成未读会话，可一键切回原生工作区；主窗口提供完整的会话管理页，偏好设置并入系统「设置」。
 
-版本 0.6.15。
+版本 0.7.0。
 
 ## 功能
 
@@ -142,60 +142,69 @@ DSH Web 的**会话视图**插件：默认接管左侧工作区块，以会话�
 
 回收站索引默认在 `~/.dsh/session-view-trash.json`，可用环境变量 `DSH_SESSION_VIEW_TRASH` 覆盖；写入使用串行队列 + 临时文件 rename，避免并发写坏索引。
 
-## 安装（web profile）
+## 安装
 
-先在插件目录构建：
+本插件是标准 DSH bundle 插件：包内自带 `cordis.patch.yml`（bundle patch）、`lib/index.js`（Host 半边）与 `lib/client.js`（Web 客户端 bundle）。安装统一走 `dsh plugin`——它把参数转发给目标 profile 目录里的 pnpm，并在安装后把 `dsh-session-view` 追加进 `dsh.profile.bundles`。**bundle 只在 DSH 进程启动时加载，安装或更新后必须重启 `dsh web`。**
 
-```bash
-npm install
-npm run build
-```
-
-Windows 上 pnpm 10 处理跨盘绝对 `file:` 目录依赖会拼错路径（`ENOENT ...\\web\\D:\\...`），因此用 profile 内的 junction + `link:`：
-
-```powershell
-New-Item -ItemType Junction `
-  -Path  "$env:USERPROFILE\\.dsh\\profiles\\web\\local-plugins\\dsh-session-view" `
-  -Target "D:\\AI\\dsh-plugins\\dsh-session-view"
-```
-
-编辑 `C:\\Users\\Administrator\\.dsh\\profiles\\web\\package.json`（先备份）：
-
-```jsonc
-{
-  "dsh": {
-    "profile": {
-      "bundles": [
-        // ...原有 bundle...
-        "dsh-session-view"
-      ]
-    }
-  },
-  "dependencies": {
-    // ...
-    "dsh-session-view": "link:local-plugins/dsh-session-view"
-  }
-}
-```
-
-安装依赖并确认组合结果：
+兼容性由 `engines.dsh` 决定（`>=0.2.1-rc.1 <0.3.0-0`）：该字段存在时 DSH 只用它判定兼容，`peerDependencies` 不再参与。不满足时安装会被拒绝，确认可用后可显式豁免：
 
 ```bash
-dsh plugin --profile web install --no-frozen-lockfile
-dsh --profile web --dump-config
+dsh plugin --profile web allow-version dsh-session-view@0.7.0 --dsh-version <当前 dsh 版本> --accept-risk
 ```
 
-确认 `node_modules\\dsh-session-view` 是指向插件目录的符号链接，且 dump 结果包含 `- id: dsh-session-view`。bundle 只在 DSH 进程启动时加载，安装/更新后需要重启 `dsh web` 才能看到新版；重启前建议备份 profile 的 `package.json`。
+### 方式一：npm（发布后可用）
 
-卸载：移除 `bundles` 条目与依赖，删除 junction，`dsh plugin --profile web install --no-frozen-lockfile`，再重启。
+```bash
+npm publish                                    # 维护者：首次需先 npm login
+dsh plugin --profile web add dsh-session-view@0.7.0
+```
+
+升级：`dsh plugin --profile web add dsh-session-view@latest`。
+
+### 方式二：Git 仓库
+
+```bash
+dsh plugin --profile web add git+https://github.com/lidongbei/dsh-session-view.git#<40 位 commit>
+```
+
+### 方式三：本地目录（开发调试，推荐脚本）
+
+```bash
+npm install && npm run build
+npm run install:profile -- --profile web --source link --apply
+```
+
+脚本在 `~/.dsh/profiles/web/local-plugins/dsh-session-view` 建立 junction / symlink 指向本仓库，再写入 `link:local-plugins/dsh-session-view` 依赖——Windows 上 pnpm 处理跨盘绝对 `file:` 依赖会拼错路径，因此不要手写绝对路径。省略 `--apply` 时只打印将要执行的命令（dry-run）。
+
+其他来源：`--source tgz`（先 `npm pack` 生成 tgz）、`--source git`（使用当前 HEAD 的 commit）、`--source registry`。
+
+### 方式四：插件市场索引
+
+`market/index.json` 是按 DSH market index format 1 生成的索引，`npm run market:index` 可复现（`--timestamp` / `--git --commit` 控制产物）。把它的 raw URL 填进 Web 插件页或 Discover 的索引地址即可浏览安装；索引当前指向 npm 源，需先完成 `npm publish`。
+
+### 校验、更新与卸载
+
+```bash
+dsh --profile web --dump-config | grep -n "dsh-session-view"   # 确认已注入
+npm run uninstall:profile -- --profile web --apply              # 卸载（脚本同样默认 dry-run）
+```
+
+排障：
+
+- `not-a-bundle`：包内缺少 `dsh.bundle.patch` 指向的 `cordis.patch.yml`，确认安装的是 ≥0.7.0 的正式包；
+- pnpm 报跨盘 `file:` 路径错误：改用 `--source link`，让脚本建立 profile 内 junction；
+- 安装成功但界面无变化：重启 `dsh web`，并检查 `dsh.profile.bundles` 是否包含 `dsh-session-view`；
+- 完全回退：`npm run uninstall:profile -- --profile web --apply`，删除 `local-plugins/dsh-session-view`，再重启。
 
 ## 开发
 
 ```bash
 npm install
-npm test        # 13 逻辑 + 2 文案 + 7 会话管理 + 5 Host 路由 + 8 工作区/偏好 + 1 系统设置 SSR + 1 侧栏 SSR + 1 主面板 SSR + 1 构建注册 = 39
+npm test        # 53 项：会话/工作区逻辑、Host 路由、SSR、构建注册、包契约
 npm run build   # esbuild -> lib/client.js（__ModuleLoader__ 包装）
 npm run check   # build + test
+npm run pack:check      # npm pack --dry-run，检查发布清单
+npm run market:index    # 重新生成 market/index.json
 ```
 
 - `src/client/prefs.js`：localStorage 偏好存储与订阅，纯数据无 React。

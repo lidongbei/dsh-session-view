@@ -1,0 +1,58 @@
+{
+  "format": 1,
+  "title": {
+    "en": "DSH Session View",
+    "zh": "DSH 会话视图"
+  },
+  "description": {
+    "en": "Session-first DSH sidebar with workspace groups, focus mode and a session trash bin.",
+    "zh": "以会话为中心的 DSH 侧栏：会话视图、工作区分组、专注模式与回收站。"
+  },
+  "metadata": {
+    "categories": {},
+    "labels": {},
+    "sortKeys": {}
+  },
+  "plugins": [
+    {
+      "name": "dsh-session-view",
+      "title": {
+        "en": "Session View",
+        "zh": "会话视图"
+      },
+      "description": {
+        "en": "Session-first DSH sidebar with workspace groups, focus mode and a session trash bin.",
+        "zh": "以会话为中心的 DSH 侧栏：会话视图、工作区分组、专注模式与回收站。"
+      },
+      "author": "lidongbei",
+      "homepage": "https://github.com/lidongbei/dsh-session-view#readme",
+      "repository": {
+        "url": "https://github.com/lidongbei/dsh-session-view"
+      },
+      "metadata": {
+        "keywords": [
+          "dsh",
+          "dsh-plugin",
+          "dsh-client",
+          "session",
+          "workspace",
+          "sidebar"
+        ],
+        "labels": [],
+        "sortKeys": {}
+      },
+      "versions": [
+        {
+          "version": "0.7.0",
+          "publishTimestamp": 1793871089,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": ">=0.2.1-rc.1 <0.3.0-0"
+          }
+        }
+      ]
+    }
+  ]
+}

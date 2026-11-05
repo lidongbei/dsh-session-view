@@ -1,8 +1,22 @@
 {
   "name": "dsh-session-view",
-  "version": "0.6.15",
-  "private": true,
+  "version": "0.7.0",
   "description": "Session-first workspace view for the DSH sidebar",
+  "license": "MIT",
+  "author": "lidongbei",
+  "homepage": "https://github.com/lidongbei/dsh-session-view#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lidongbei/dsh-session-view.git"
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "dsh-client",
+    "session",
+    "workspace",
+    "sidebar"
+  ],
   "type": "module",
   "main": "lib/index.js",
   "exports": {
@@ -19,6 +33,45 @@
     "icon.svg",
     "README.md"
   ],
+  "engines": {
+    "node": ">=20",
+    "dsh": ">=0.2.1-rc.1 <0.3.0-0"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.5",
+    "@deepseek-ai/dsh": "^0.2.1-rc.1",
+    "@deepseek-ai/dsh-client-locale": "^0.2.1-rc.1",
+    "@deepseek-ai/dsh-client-ui-layout": "^0.2.1-rc.1",
+    "@deepseek-ai/dsh-client-ui-sidebar": "^0.2.1-rc.1",
+    "@deepseek-ai/dsh-client-ui-session": "^0.2.1-rc.1",
+    "@deepseek-ai/dsh-client-ui-workspace": "^0.2.1-rc.1"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/cordis": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-locale": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-ui-layout": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-ui-sidebar": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-ui-session": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-ui-workspace": {
+      "optional": true
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
@@ -39,7 +92,11 @@
     "build": "node build.mjs",
     "pretest": "node build.mjs",
     "test": "node --test",
-    "check": "npm run build && npm test"
+    "check": "npm run build && npm test",
+    "pack:check": "npm pack --dry-run",
+    "install:profile": "node scripts/install-profile.mjs",
+    "uninstall:profile": "node scripts/uninstall-profile.mjs",
+    "market:index": "node scripts/market-index.mjs"
   },
   "devDependencies": {
     "esbuild": "^0.28.0",
