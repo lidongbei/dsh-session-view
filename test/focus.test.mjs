@@ -68,6 +68,11 @@ test('preferences sanitize focus groups and the active selection', () => {
   resetPrefs();
   assert.equal(getPrefs().focusGroupId, '');
   assert.deepEqual(getPrefs().focusExpanded, []);
+  assert.equal(getPrefs().focusEnabled, true);
+  setPrefs({ focusEnabled: false });
+  assert.equal(getPrefs().focusEnabled, false);
+  setPrefs({ focusEnabled: true });
+  assert.equal(getPrefs().focusEnabled, true);
 });
 
 test('focus helpers filter rows and workspaces by the active group', () => {
@@ -101,6 +106,13 @@ test('focus helpers filter rows and workspaces by the active group', () => {
   assert.equal(focusIncludesPath(focused, workspaces, 'C:/work/app/deep'), true);
   assert.equal(focusIncludesPath(focused, workspaces, 'C:/work/other/deep'), false);
   assert.equal(focusIncludesPath(focused, workspaces, 'D:/elsewhere'), false);
+
+  const disabled = { ...focused, focusEnabled: false };
+  assert.equal(focusGroupById(disabled), undefined);
+  assert.equal(focusWorkspaceIds(disabled), null);
+  assert.equal(filterRowsByFocus(rows, disabled).length, rows.length);
+  assert.equal(restrictWorkspaces(workspaces, disabled).items.length, workspaces.items.length);
+  assert.equal(focusIncludesPath(disabled, workspaces, 'C:/work/other/deep'), true);
 });
 
 test('focus member helpers scope rows and workspaces to an explicit id set', () => {
@@ -255,6 +267,9 @@ setPrefs({
   focusExpanded: ['g1'],
 });
 globalThis.__FOCUS_EXPANDED_HTML = renderToStaticMarkup(React.createElement(SidebarWorkspacePane, props));
+
+setPrefs({ focusEnabled: false, focusGroups: [{ id: 'g1', name: '前端', workspaceIds: ['w1'] }], focusGroupId: 'g1' });
+globalThis.__FOCUS_DISABLED_HTML = renderToStaticMarkup(React.createElement(SidebarWorkspacePane, props));
 resetPrefs();
 `;
 
@@ -281,6 +296,7 @@ test('focus mode filters the sidebar by the selected workspaces', async () => {
     const empty = globalThis.__FOCUS_EMPTY_HTML;
     const expanded = globalThis.__FOCUS_EXPANDED_HTML;
     const members = globalThis.__FOCUS_MEMBERS_HTML;
+    const disabled = globalThis.__FOCUS_DISABLED_HTML;
     const helpers = globalThis.__FOCUS_HELPERS;
     delete globalThis.__FOCUS_OFF_HTML;
     delete globalThis.__FOCUS_ON_HTML;
@@ -288,6 +304,7 @@ test('focus mode filters the sidebar by the selected workspaces', async () => {
     delete globalThis.__FOCUS_EMPTY_HTML;
     delete globalThis.__FOCUS_EXPANDED_HTML;
     delete globalThis.__FOCUS_MEMBERS_HTML;
+    delete globalThis.__FOCUS_DISABLED_HTML;
     delete globalThis.__FOCUS_HELPERS;
 
     assert.match(helpers.id, /^focus-[a-z0-9]+-[a-z0-9]+$/);
@@ -320,8 +337,13 @@ test('focus mode filters the sidebar by the selected workspaces', async () => {
     assert.ok(empty.includes('专注'), 'an empty focused group must explain the empty state');
     assert.ok(!empty.includes('App task one'), 'empty focused group must not list unrelated sessions');
 
+    assert.ok(!disabled.includes('class="dsv-sideGroup dsv-sideFocus"'), 'disabling focus mode must hide the focus section');
+    assert.ok(!disabled.includes('<div class="dsv-focusBar">'), 'disabling focus mode must hide the focus bar');
+    assert.ok(disabled.includes('Lib task'), 'disabling focus mode must stop filtering by the active group');
+
     assert.ok(off.includes('class="dsv-sideGroup dsv-sideFocus"'), 'focus section must sit in the sidebar list');
-    assert.ok(off.includes('还没有专注组') && off.includes('新建专注组'), 'empty focus section must offer creation');
+    assert.ok(off.includes('aria-label="新建专注组"') && off.includes('aria-label="管理专注组"'), 'empty focus section must keep its header actions');
+    assert.ok(!off.includes('dsv-focusBlank'), 'empty focus section must not render a blank hint block');
     assert.ok(on.includes('<div class="dsv-focusRow" data-active="true">'), 'active focus row must be marked');
     assert.match(on, /class="dsv-focusRowName">前端</, 'focus section must list the group name');
     assert.ok(!on.includes('dsv-focusRowEdit'), 'focus rows must not render a per-row manage button');

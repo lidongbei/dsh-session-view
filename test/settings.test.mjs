@@ -45,6 +45,7 @@ test('session view settings expose the workspace group switch and no layout opti
     assert.equal(typeof html, 'string');
     assert.ok(html.includes('显示工作区会话分组'), 'missing workspace group switch');
     assert.ok(html.includes('显示活跃会话分组'), 'missing active group switch');
+    assert.ok(html.includes('专注模式'), 'missing focus mode switch');
     assert.ok(!html.includes('布局'), 'layout option must be gone');
     assert.ok(html.includes('活跃会话显示个数'), 'missing active limit');
     assert.ok(html.includes('最近会话显示个数'), 'missing recent limit');

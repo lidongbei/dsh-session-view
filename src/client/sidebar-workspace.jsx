@@ -985,16 +985,6 @@ export function SidebarWorkspacePane({
               <button
                 type="button"
                 className="dsv-sideIconBtn"
-                aria-pressed={Boolean(focusGroup)}
-                aria-label={t('focus.title')}
-                title={t('focus.title')}
-                onClick={() => setDialog({ kind: 'focus' })}
-              >
-                <TargetIcon size={14} />
-              </button>
-              <button
-                type="button"
-                className="dsv-sideIconBtn"
                 aria-label={t('side.manage')}
                 title={t('side.manage')}
                 onClick={() => openPanel?.()}
@@ -1107,7 +1097,7 @@ export function SidebarWorkspacePane({
               </section>
             )}
 
-            {prefs.archivedFilter !== 'only' && !query.trim() && (
+            {prefs.archivedFilter !== 'only' && prefs.focusEnabled !== false && !query.trim() && (
               <section className="dsv-sideGroup dsv-sideFocus" aria-label={t('focus.groups')}>
                 {sectionHead({
                   key: '__focus',
@@ -1116,9 +1106,26 @@ export function SidebarWorkspacePane({
                   icon: <TargetIcon size={12} />,
                   collapsed: focusCollapsed,
                   extra: (
-                    <button type="button" className="dsv-sideTextBtn" onClick={() => setDialog({ kind: 'focus' })}>
-                      {t('focus.manage')}
-                    </button>
+                    <span className="dsv-sideHeadActions">
+                      <button
+                        type="button"
+                        className="dsv-sideIconBtn"
+                        aria-label={t('focus.new')}
+                        title={t('focus.new')}
+                        onClick={() => setDialog({ kind: 'focus', creating: true })}
+                      >
+                        <PlusIcon size={12} />
+                      </button>
+                      <button
+                        type="button"
+                        className="dsv-sideIconBtn"
+                        aria-label={t('focus.manage')}
+                        title={t('focus.manage')}
+                        onClick={() => setDialog({ kind: 'focus' })}
+                      >
+                        <SessionViewIcon size={12} />
+                      </button>
+                    </span>
                   ),
                 })}
                 {!focusCollapsed && (
@@ -1178,14 +1185,6 @@ export function SidebarWorkspacePane({
                         </div>
                       );
                     })}
-                    {prefs.focusGroups.length === 0 && (
-                      <div className="dsv-focusBlank">
-                        <span className="dsv-sideHint">{t('focus.emptyManage')}</span>
-                        <button type="button" className="dsv-sideTextBtn" onClick={() => setDialog({ kind: 'focus' })}>
-                          {t('focus.new')}
-                        </button>
-                      </div>
-                    )}
                   </>
                 )}
               </section>
@@ -1324,6 +1323,7 @@ export function SidebarWorkspacePane({
           t={t}
           prefs={prefs}
           workspaces={workspaces}
+          initialCreating={dialog.creating === true}
           onChange={(patch) => setPrefs(patch)}
           onClose={() => setDialog(null)}
         />

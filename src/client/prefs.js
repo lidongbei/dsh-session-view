@@ -30,6 +30,7 @@ export const DEFAULT_PREFS = Object.freeze({
   focusGroups: Object.freeze([]),
   focusGroupId: '',
   focusExpanded: Object.freeze([]),
+  focusEnabled: true,
 });
 
 const MODES = new Set(['session', 'native']);
@@ -96,11 +97,20 @@ function sanitize(raw) {
     focusGroups,
     focusGroupId,
     focusExpanded,
+    focusEnabled: value.focusEnabled !== false,
   };
 }
 
 function fresh() {
-  return { ...DEFAULT_PREFS, manualOrder: {}, collapsedGroups: [], focusGroups: [], focusGroupId: '', focusExpanded: [] };
+  return {
+    ...DEFAULT_PREFS,
+    manualOrder: {},
+    collapsedGroups: [],
+    focusGroups: [],
+    focusGroupId: '',
+    focusExpanded: [],
+    focusEnabled: true,
+  };
 }
 
 function load() {

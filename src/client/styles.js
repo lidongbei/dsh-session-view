@@ -567,6 +567,10 @@ export const STYLES = `
   padding: 24px;
   background: rgba(0, 0, 0, 0.36);
 }
+.dsv-dialogOverlay,
+.dsv-dialogOverlay *,
+.dsv-dialogOverlay *::before,
+.dsv-dialogOverlay *::after { box-sizing: border-box; }
 .dsv-dialog {
   width: min(420px, 100%);
   padding: 18px;
@@ -1349,7 +1353,7 @@ body.dsv-dragging * { -webkit-user-select: none !important; user-select: none !i
 .dsv-focusCardFoot { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
 .dsv-focusCardActions { display: flex; gap: 2px; margin-left: auto; }
 .dsv-focusRename { display: inline-flex; flex: 1; align-items: center; gap: 6px; min-width: 0; }
-.dsv-focusRename .dsv-input { height: 26px; }
+.dsv-focusRename .dsv-input { height: 26px; padding: 0 10px; }
 .dsv-focusMembers {
   display: flex;
   flex-direction: column;
@@ -1375,12 +1379,10 @@ body.dsv-dragging * { -webkit-user-select: none !important; user-select: none !i
   border-radius: 10px;
   background: var(--dsw-alias-interactive-bg-hover);
 }
-.dsv-focusCreate .dsv-input { width: 100%; height: 30px; margin-bottom: 8px; }
+.dsv-focusCreate .dsv-input { width: 100%; height: 30px; margin-bottom: 8px; padding: 0 10px; }
 .dsv-focusCreate .dsv-focusMembers { margin-top: 0; padding-top: 0; border-top: 0; max-height: 150px; overflow: auto; }
 .dsv-focusCreateFoot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
 .dsv-focusCreateFoot .dsv-sideHint { margin: 0; }
-.dsv-focusEntry { gap: 5px; }
-.dsv-focusEntryDot { width: 6px; height: 6px; border-radius: 999px; background: var(--dsw-alias-state-business-primary); }
 .dsv-sideFocus .dsv-focusRow { display: flex; align-items: center; gap: 4px; }
 .dsv-focusRowMain {
   flex: 1;
@@ -1405,7 +1407,6 @@ body.dsv-dragging * { -webkit-user-select: none !important; user-select: none !i
 .dsv-focusRow[data-active="true"] .dsv-focusDot { background: var(--dsw-alias-state-business-primary); }
 .dsv-focusRowName { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dsv-focusRowMeta { flex: none; font-size: 10px; color: var(--dsw-alias-label-tertiary); font-variant-numeric: tabular-nums; }
-.dsv-focusBlank { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 2px 4px 6px; }
 .dsv-focusChevron { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 10px; color: var(--dsw-alias-label-tertiary); }
 .dsv-focusRowMain .dsv-focusChevron { margin-right: -1px; }
 .dsv-focusBody { display: flex; flex-direction: column; gap: 2px; margin: 0 0 4px 9px; padding-left: 5px; border-left: 1px solid var(--dsw-alias-border-l3); }

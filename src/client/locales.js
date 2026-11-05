@@ -166,6 +166,8 @@ export const zh = {
   'settings.desc.limits': '0 表示不限制；每个工作区会根据活跃会话自动扩展。',
   'settings.desc.sort': '手动排序仅影响会话和工作区的展示顺序。',
   'settings.desc.nest': '按工作区路径嵌套显示子工作区。',
+  'settings.focusEnabled': '专注模式',
+  'settings.desc.focusEnabled': '关闭后隐藏左侧专注组分区、专注条与全部专注入口；已创建的专注组会保留。',
   'settings.desc.archived': '控制已归档会话是否出现在列表和面板中。',
   'settings.desc.times': '在会话行右侧显示相对更新时间。',
   'settings.desc.compact': '降低行高，适合小屏幕或会话较多时使用。',
@@ -203,7 +205,6 @@ export const zh = {
   'empty.none': '还没有会话',
   'empty.noneHint': '从上方“新会话”开始，或添加一个工作区。',
   'focus.title': '专注模式',
-  'focus.entry': '专注模式',
   'focus.desc': '把若干工作区组成专注组；进入后左侧会话栏只显示组内工作区的会话。',
   'focus.current': '当前专注：{name}',
   'focus.exit': '退出专注',
@@ -239,7 +240,6 @@ export const zh = {
   'focus.switch': '切换',
   'focus.selectedCount': '已选 {n} 个工作区',
   'focus.groups': '专注组',
-  'focus.emptyManage': '还没有专注组',
 };
 
 export const en = {
@@ -408,6 +408,8 @@ export const en = {
   'settings.desc.limits': '0 means unlimited; each workspace expands automatically for active sessions.',
   'settings.desc.sort': 'Manual order only changes how sessions and workspaces are displayed.',
   'settings.desc.nest': 'Nest child workspaces by their filesystem path.',
+  'settings.focusEnabled': 'Focus mode',
+  'settings.desc.focusEnabled': 'Hides the focus section, the focus bar and every focus entry when off; existing groups are kept.',
   'settings.desc.archived': 'Control whether archived sessions appear in the list and the panel.',
   'settings.desc.times': 'Show the relative update time at the end of each session row.',
   'settings.desc.compact': 'Reduce row height for small screens or long session lists.',
@@ -445,7 +447,6 @@ export const en = {
   'empty.none': 'No sessions yet',
   'empty.noneHint': 'Start with “New session” above, or add a workspace.',
   'focus.title': 'Focus mode',
-  'focus.entry': 'Focus mode',
   'focus.desc': 'Group a few workspaces and narrow the sidebar session list to that group while it is active.',
   'focus.current': 'Focused: {name}',
   'focus.exit': 'Exit focus',
@@ -481,5 +482,4 @@ export const en = {
   'focus.switch': 'Switch',
   'focus.selectedCount': '{n} selected',
   'focus.groups': 'Focus groups',
-  'focus.emptyManage': 'No focus groups yet',
 };

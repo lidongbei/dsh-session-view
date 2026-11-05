@@ -177,6 +177,12 @@ export function SessionViewSettings({ t }) {
           </select>
         </Row>
         <Toggle
+          label={t('settings.focusEnabled')}
+          description={t('settings.desc.focusEnabled')}
+          value={prefs.focusEnabled !== false}
+          onChange={(value) => setPrefs({ focusEnabled: value })}
+        />
+        <Toggle
           label={t('settings.showTimes')}
           description={t('settings.desc.times')}
           value={prefs.showTimes}

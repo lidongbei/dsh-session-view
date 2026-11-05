@@ -152,8 +152,8 @@ export function FocusMembersDialog({ t, prefs, workspaces, groupId, onChange, on
 }
 
 /** Manager dialog: switch, create, rename, edit members and delete groups. */
-export function FocusDialog({ t, prefs, workspaces, onChange, onClose }) {
-  const [creating, setCreating] = useState(false);
+export function FocusDialog({ t, prefs, workspaces, onChange, onClose, initialCreating = false }) {
+  const [creating, setCreating] = useState(initialCreating);
   const [newName, setNewName] = useState('');
   const [newIds, setNewIds] = useState([]);
   const [renamingId, setRenamingId] = useState('');

@@ -561,6 +561,7 @@ export function watermarkLimit(rows, base, ceiling = 50) {
 
 /** The active focus group, or undefined when focus mode is off or stale. */
 export function focusGroupById(prefs, id = prefs?.focusGroupId) {
+  if (prefs?.focusEnabled === false) return undefined;
   if (!id) return undefined;
   return (prefs?.focusGroups ?? []).find((group) => group.id === id);
 }
