@@ -73,7 +73,8 @@ export function SessionView({
   const [workspaceId, setWorkspaceId] = useState(ALL);
   const [status, setStatus] = useState(ALL);
   const [now, setNow] = useState(() => Date.now());
-  const [groupWorkspaces, setGroupWorkspaces] = useState(false);
+  const [groupWorkspaces, setGroupWorkspaces] = useState(true);
+  const [collapsedSections, setCollapsedSections] = useState(() => new Set());
   const [manage, setManage] = useState(false);
   const [selected, setSelected] = useState([]);
   const [busy, setBusy] = useState(false);
@@ -127,20 +128,6 @@ export function SessionView({
     return visible.filter((row) => !trashedIds.has(row.session.id));
   }, [sessions, statuses, workspaces, prefs.showSubagents, trashedIds]);
 
-  const workspaceOptions = useMemo(() => {
-    const byWorkspace = new Map();
-    for (const row of annotated) {
-      const workspace = row.workspace;
-      if (!workspace?.workspaceId) continue;
-      if (!byWorkspace.has(workspace.workspaceId)) {
-        byWorkspace.set(workspace.workspaceId, workspaceLabel(workspace) || workspace.workspaceId);
-      }
-    }
-    return Array.from(byWorkspace, ([id, label]) => ({ id, label })).sort((a, b) =>
-      a.label.localeCompare(b.label),
-    );
-  }, [annotated]);
-
   const scopeRows = useMemo(
     () => filterRows(annotated, { query, workspaceId, status: ALL }),
     [annotated, query, workspaceId],
@@ -165,6 +152,21 @@ export function SessionView({
     const rows = prefs.showSubagents ? all : all.filter((row) => row.session.origin !== 'subagent');
     return rows.filter((row) => matchesQuery(row, query));
   }, [trash.items, sessions?.byId, query, prefs.showSubagents]);
+
+  const workspaceOptions = useMemo(() => {
+    const byWorkspace = new Map();
+    const source = tab === 'archived' ? archived : tab === 'trash' ? trashed : annotated;
+    for (const row of source) {
+      const workspace = row.workspace;
+      if (!workspace?.workspaceId) continue;
+      if (!byWorkspace.has(workspace.workspaceId)) {
+        byWorkspace.set(workspace.workspaceId, workspaceLabel(workspace) || workspace.workspaceId);
+      }
+    }
+    return Array.from(byWorkspace, ([id, label]) => ({ id, label })).sort((a, b) =>
+      a.label.localeCompare(b.label),
+    );
+  }, [annotated, archived, trashed, tab]);
 
   const pinnedSet = useMemo(
     () => new Set(workspaces?.pinnedSessionIds ?? []),
@@ -209,7 +211,6 @@ export function SessionView({
     setBusy(true);
     try {
       await (pinned ? unpinSession(id) : pinSession(id));
-      setToast({ text: t(pinned ? 'toast.unpinned' : 'toast.pinned'), tone: 'info' });
     } catch (error) {
       setToast({ text: t('toast.failed', { message: errorText(error) }), tone: 'error' });
     } finally {
@@ -493,15 +494,35 @@ export function SessionView({
     );
   };
 
+  const toggleSection = (key) => {
+    setCollapsedSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
   const renderSection = (key, title, rows, selectable = false) => {
     if (rows.length === 0) return null;
     const ids = rows.map((row) => row.session.id);
     const allSelected = ids.length > 0 && ids.every((id) => selectedSet.has(id));
+    const collapsed = collapsedSections.has(key);
     return (
       <section className="dsv-section" key={key}>
         <div className="dsv-sectionHead">
-          <h2 className="dsv-sectionTitle">{title}</h2>
-          <span className="dsv-sectionCount">{rows.length}</span>
+          <button
+            type="button"
+            className="dsv-sectionToggle"
+            aria-expanded={!collapsed}
+            onClick={() => toggleSection(key)}
+          >
+            <span className="dsv-sectionChevron" data-collapsed={collapsed} aria-hidden="true">
+              <ChevronDownIcon size={12} />
+            </span>
+            <span className="dsv-sectionTitle">{title}</span>
+            <span className="dsv-sectionCount">{rows.length}</span>
+          </button>
           {selectable && (
             <button
               type="button"
@@ -519,16 +540,18 @@ export function SessionView({
             </button>
           )}
         </div>
-        <div className="dsv-list" role="list" aria-label={title}>
-          {rows.map(renderRow)}
-        </div>
+        {!collapsed && (
+          <div className="dsv-list" role="list" aria-label={title}>
+            {rows.map(renderRow)}
+          </div>
+        )}
       </section>
     );
   };
 
-  const workspaceSections = useMemo(() => {
+  const buildWorkspaceSections = (rows) => {
     const buckets = new Map();
-    for (const row of activeRows) {
+    for (const row of rows) {
       const workspace = row.workspace;
       const key = workspace?.workspaceId ?? '__none';
       if (!buckets.has(key)) {
@@ -540,16 +563,27 @@ export function SessionView({
       }
       buckets.get(key).rows.push(row);
     }
+    for (const bucket of buckets.values()) {
+      bucket.rows.sort((a, b) => Number(pinnedSet.has(b.session.id)) - Number(pinnedSet.has(a.session.id)));
+    }
     return [...buckets.values()].sort((a, b) => a.title.localeCompare(b.title, 'zh'));
-  }, [activeRows, t]);
+  };
+
+  const activeWorkspaceSections = buildWorkspaceSections(activeRows);
+  const archivedWorkspaceSections = buildWorkspaceSections(archived);
+  const trashWorkspaceSections = buildWorkspaceSections(trashed);
 
   const sectionList =
     tab === 'archived'
-      ? [['archived', t('tab.archived'), archived]]
+      ? groupWorkspaces
+        ? archivedWorkspaceSections.map((group) => [group.key, group.title, group.rows])
+        : [['archived', t('tab.archived'), archived]]
       : tab === 'trash'
-        ? [['trash', t('tab.trash'), trashed]]
-        : manage && groupWorkspaces
-          ? workspaceSections.map((group) => [group.key, group.title, group.rows])
+        ? groupWorkspaces
+          ? trashWorkspaceSections.map((group) => [group.key, group.title, group.rows])
+          : [['trash', t('tab.trash'), trashed]]
+        : groupWorkspaces
+          ? activeWorkspaceSections.map((group) => [group.key, group.title, group.rows])
           : status === ALL
             ? [
                 ['pinned', t('section.pinned'), sections.pinned],
@@ -603,8 +637,17 @@ export function SessionView({
   const confirmCopy = confirm ? CONFIRM_COPY[confirm.kind] : null;
 
   return (
-    <div className="dsv-page" aria-busy={busy || undefined}>
+    <div
+      className="dsv-page"
+      aria-busy={busy || undefined}
+      onWheel={(event) => {
+        if (event.target.closest('.dsv-scroll, .dsv-dialog, .dsv-toast')) return;
+        const scroller = event.currentTarget.querySelector('.dsv-scroll');
+        if (scroller) scroller.scrollTop += event.deltaY;
+      }}
+    >
       <style>{STYLES}</style>
+      <div className="dsv-scroll">
       <div className="dsv-content">
         <header className="dsv-head">
           <div className="dsv-heading">
@@ -683,6 +726,20 @@ export function SessionView({
               <ChevronDownIcon />
             </span>
           </div>
+          <div className="dsv-selectWrap">
+            <select
+              className="dsv-select"
+              value={groupWorkspaces ? 'workspace' : 'status'}
+              onChange={(event) => setGroupWorkspaces(event.target.value === 'workspace')}
+              aria-label={t('filter.group')}
+            >
+              <option value="workspace">{t('manage.byWorkspace')}</option>
+              <option value="status">{t('manage.byStatus')}</option>
+            </select>
+            <span className="dsv-chevron">
+              <ChevronDownIcon />
+            </span>
+          </div>
         </div>
         )}
 
@@ -716,16 +773,6 @@ export function SessionView({
             >
               {allSelected ? t('select.clear') : t('select.all')}
             </button>
-            {tab === 'active' && (
-              <button
-                type="button"
-                className="dsv-btn"
-                aria-pressed={groupWorkspaces}
-                onClick={() => setGroupWorkspaces((value) => !value)}
-              >
-                {groupWorkspaces ? t('manage.byStatus') : t('manage.byWorkspace')}
-              </button>
-            )}
             {tab === 'active' && (
               <>
                 <button
@@ -812,6 +859,7 @@ export function SessionView({
         ) : (
           sectionList.map(([key, title, rows]) => renderSection(key, title, rows, manage && groupWorkspaces && tab === 'active'))
         )}
+      </div>
       </div>
 
       {confirm && confirmCopy && (

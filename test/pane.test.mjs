@@ -75,7 +75,7 @@ const props = {
 globalThis.__DSV_PANE_HTML = renderToStaticMarkup(React.createElement(SidebarWorkspacePane, props));
 setPrefs({ showRecent: false, showPinned: false, showActive: false });
 globalThis.__DSV_PANE_HTML_HIDDEN = renderToStaticMarkup(React.createElement(SidebarWorkspacePane, props));
-setPrefs({ showRecent: true, showPinned: true, showActive: true, collapsedGroups: ['__active', '__recent', '__workspaces'] });
+setPrefs({ showRecent: true, showPinned: true, showActive: true, collapsedGroups: ['__active', '__recent', '__pinned', '__workspaces'] });
 globalThis.__DSV_PANE_HTML_COLLAPSED = renderToStaticMarkup(React.createElement(SidebarWorkspacePane, props));
 setPrefs({ compact: true, showTimes: true, collapsedGroups: [] });
 globalThis.__DSV_PANE_HTML_COMPACT = renderToStaticMarkup(React.createElement(SidebarWorkspacePane, props));
@@ -152,6 +152,9 @@ test('SidebarWorkspacePane renders pinned and a limited active group', async () 
     assert.match(collapsed, /aria-label="活跃会话"[\s\S]*?aria-expanded="false"/, 'active section must be collapsible');
     const activeCollapsed = collapsed.match(/<section class="dsv-sideGroup" aria-label="活跃会话">([\s\S]*?)<\/section>/)?.[1] ?? '';
     assert.ok(!activeCollapsed.includes('dsv-sideRow'), 'collapsed active section must not render rows');
+    assert.match(collapsed, /aria-label="置顶"[\s\S]*?aria-expanded="false"/, 'pinned section must be collapsible');
+    const pinnedCollapsed = collapsed.match(/<section class="dsv-sideGroup" aria-label="置顶">([\s\S]*?)<\/section>/)?.[1] ?? '';
+    assert.ok(!pinnedCollapsed.includes('dsv-sideRow'), 'collapsed pinned section must not render rows');
     assert.ok(!collapsed.includes('aria-label="App"'), 'collapsed workspace section must not render groups');
 
     const compact = globalThis.__DSV_PANE_HTML_COMPACT;

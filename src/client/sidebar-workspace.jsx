@@ -469,7 +469,7 @@ export function SidebarWorkspacePane({
   const togglePin = async (row) => {
     const id = row.session.id;
     setMenu(null);
-    await run(() => (pinnedSet.has(id) ? unpinSession(id) : pinSession(id)), pinnedSet.has(id) ? 'toast.unpinned' : 'toast.pinned');
+    await run(() => (pinnedSet.has(id) ? unpinSession(id) : pinSession(id)));
   };
 
   const archive = async (row) => {
@@ -924,6 +924,7 @@ export function SidebarWorkspacePane({
   const searchActive = query.trim().length > 0;
   const activeCollapsed = collapsedGroups.has('__active');
   const recentCollapsed = collapsedGroups.has('__recent');
+  const pinnedCollapsed = collapsedGroups.has('__pinned');
   const workspacesCollapsed = collapsedGroups.has('__workspaces');
 
   useEffect(() => {
@@ -1120,15 +1121,14 @@ export function SidebarWorkspacePane({
 
             {prefs.archivedFilter !== 'only' && prefs.showPinned && pinnedRows.length > 0 && (
               <section className="dsv-sideGroup" aria-label={t('section.pinned')}>
-                <div className="dsv-sideGroupHead dsv-sideSectionHead">
-                  <div className="dsv-sideGroupToggle">
-                    <span className="dsv-sideChevron" aria-hidden="true" />
-                    <PinIcon size={12} />
-                    <span className="dsv-sideGroupTitle">{t('section.pinned')}</span>
-                    <span className="dsv-sideCount">{pinnedRows.length}</span>
-                  </div>
-                </div>
-                {pinnedView.map((row) => renderRow(row))}
+                {sectionHead({
+                  key: '__pinned',
+                  label: t('section.pinned'),
+                  count: pinnedRows.length,
+                  icon: <PinIcon size={12} />,
+                  collapsed: pinnedCollapsed,
+                })}
+                {!pinnedCollapsed && pinnedView.map((row) => renderRow(row))}
               </section>
             )}
 
