@@ -526,24 +526,48 @@ export function SidebarWorkspacePane({
     });
   };
 
+  const clearDragMarks = () => {
+    document.body.classList.remove('dsv-dragging');
+    document
+      .querySelectorAll('.dsv-dragSource, .dsv-dropBefore, .dsv-dropAfter, .dsv-dropTarget')
+      .forEach((node) => node.classList.remove('dsv-dragSource', 'dsv-dropBefore', 'dsv-dropAfter', 'dsv-dropTarget'));
+    window.getSelection()?.removeAllRanges();
+  };
+
+  const markRowDrop = (event) => {
+    if (prefs.sort !== 'manual' || query.trim() || busy) return;
+    event.preventDefault();
+    const rect = event.currentTarget.getBoundingClientRect();
+    const after = event.clientY > rect.top + rect.height / 2;
+    event.currentTarget.classList.toggle('dsv-dropAfter', after);
+    event.currentTarget.classList.toggle('dsv-dropBefore', !after);
+  };
+
   const onDropRow = (event, target) => {
     event.preventDefault();
     event.stopPropagation();
+    clearDragMarks();
     const dragId = dragRef.current;
     dragRef.current = null;
     if (!dragId || dragId === target.session.id) return;
     const group = groups.find((item) => item.rows.some((row) => row.session.id === target.session.id));
     const key = group?.key ?? '__none';
     const current = prefs.manualOrder[key] ?? (group?.rows ?? []).map((row) => row.session.id);
-    const next = moveId(current, dragId, target.session.id);
+    const rect = event.currentTarget.getBoundingClientRect();
+    const after = event.clientY > rect.top + rect.height / 2;
+    const next = moveId(current, dragId, target.session.id, after);
     setPrefs({ manualOrder: { ...prefs.manualOrder, [key]: next } });
   };
 
   const startDrag = (event, row) => {
     if (prefs.sort !== 'manual' || query.trim() || busy) return;
     dragRef.current = row.session.id;
+    window.getSelection()?.removeAllRanges();
+    document.body.classList.add('dsv-dragging');
+    event.currentTarget.classList.add('dsv-dragSource');
     event.dataTransfer.effectAllowed = 'move';
     event.dataTransfer.setData('text/plain', row.session.id);
+    event.dataTransfer.setDragImage(event.currentTarget, 14, 18);
   };
 
   const closeMenus = () => {
@@ -647,9 +671,12 @@ export function SidebarWorkspacePane({
         style={{ '--dsv-indent': `${(row.depth ?? 0) * 12}px` }}
         draggable={prefs.sort === 'manual' && !query.trim() && !archivedRow}
         onDragStart={(event) => startDrag(event, row)}
-        onDragOver={(event) => {
-          if (prefs.sort === 'manual' && !query.trim() && !archivedRow) event.preventDefault();
+        onDragOver={markRowDrop}
+        onDragLeave={(event) => {
+          if (event.currentTarget.contains(event.relatedTarget)) return;
+          event.currentTarget.classList.remove('dsv-dropBefore', 'dsv-dropAfter');
         }}
+        onDragEnd={clearDragMarks}
         onDrop={(event) => onDropRow(event, row)}
         onContextMenu={(event) => {
           event.preventDefault();
@@ -703,22 +730,34 @@ export function SidebarWorkspacePane({
         onDragStart={(event) => {
           if (!workspace || prefs.sort !== 'manual' || query.trim()) return;
           workspaceDragRef.current = workspace.workspaceId;
+          window.getSelection()?.removeAllRanges();
+          document.body.classList.add('dsv-dragging');
+          event.currentTarget.classList.add('dsv-dragSource');
           event.dataTransfer.effectAllowed = 'move';
           event.dataTransfer.setData('application/x-dsv-workspace', workspace.workspaceId);
+          event.dataTransfer.setDragImage(event.currentTarget, 14, 18);
         }}
         onDragOver={(event) => {
           const from = workspaceDragRef.current;
-          if (from && workspace && from !== workspace.workspaceId) event.preventDefault();
+          if (!from || !workspace || from === workspace.workspaceId) return;
+          event.preventDefault();
+          event.currentTarget.classList.add('dsv-dropTarget');
+        }}
+        onDragLeave={(event) => {
+          if (event.currentTarget.contains(event.relatedTarget)) return;
+          event.currentTarget.classList.remove('dsv-dropTarget');
         }}
         onDrop={(event) => {
           const from = workspaceDragRef.current;
           workspaceDragRef.current = null;
+          clearDragMarks();
           if (!from || !workspace || from === workspace.workspaceId) return;
           event.preventDefault();
           insertWorkspaceBefore?.(from, workspace.workspaceId);
         }}
         onDragEnd={() => {
           workspaceDragRef.current = null;
+          clearDragMarks();
         }}
         onContextMenu={(event) => {
           if (!workspace) return;

@@ -511,12 +511,12 @@ export function applyManualOrder(rows, order) {
   });
 }
 
-/** Move one id before another inside a saved order, returning a new array. */
-export function moveId(order, dragId, targetId) {
+/** Move one id before or after another inside a saved order, returning a new array. */
+export function moveId(order, dragId, targetId, after = false) {
   const base = Array.isArray(order) ? order.filter((id) => id !== dragId) : [];
   const target = base.indexOf(targetId);
-  const next = target < 0 ? [...base, dragId] : [...base.slice(0, target), dragId, ...base.slice(target)];
-  return next;
+  const index = target < 0 ? base.length : Math.min(base.length, target + (after ? 1 : 0));
+  return [...base.slice(0, index), dragId, ...base.slice(index)];
 }
 
 /**

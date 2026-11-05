@@ -79,6 +79,8 @@ setPrefs({ showRecent: true, showPinned: true, showActive: true, collapsedGroups
 globalThis.__DSV_PANE_HTML_COLLAPSED = renderToStaticMarkup(React.createElement(SidebarWorkspacePane, props));
 setPrefs({ compact: true, showTimes: true, collapsedGroups: [] });
 globalThis.__DSV_PANE_HTML_COMPACT = renderToStaticMarkup(React.createElement(SidebarWorkspacePane, props));
+setPrefs({ compact: false, sort: 'manual', collapsedGroups: [] });
+globalThis.__DSV_PANE_HTML_MANUAL = renderToStaticMarkup(React.createElement(SidebarWorkspacePane, props));
 resetPrefs();
 `;
 
@@ -157,6 +159,15 @@ test('SidebarWorkspacePane renders pinned and a limited active group', async () 
     assert.match(compact, /data-compact="true"/, 'compact mode must be applied');
     assert.ok(compact.includes('dsv-sideTime'), 'compact rows must keep the session time');
     assert.ok(!compact.includes('.dsv-side[data-compact="true"] .dsv-sideTime { display: none; }'), 'compact mode must not hide the session time');
+
+    const manual = globalThis.__DSV_PANE_HTML_MANUAL;
+    delete globalThis.__DSV_PANE_HTML_MANUAL;
+    assert.match(manual, /class="dsv-sideRow"[^>]*draggable="true"/, 'manual sort rows must be draggable');
+    assert.match(manual, /class="dsv-sideGroupHead"[^>]*draggable="true"/, 'manual sort workspace heads must be draggable');
+    assert.match(manual, /body\.dsv-dragging/, 'drag selection lock CSS missing');
+    assert.match(manual, /\.dsv-dragSource/, 'drag source style missing');
+    assert.match(manual, /\.dsv-sideRow\.dsv-dropBefore::before/, 'row drop indicator missing');
+    assert.match(manual, /\.dsv-sideGroupHead\.dsv-dropTarget/, 'workspace drop indicator missing');
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

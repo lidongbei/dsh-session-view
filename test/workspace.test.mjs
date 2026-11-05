@@ -183,6 +183,8 @@ test('manual ordering moves pinned rows and keeps unknown rows last', () => {
     ['c', 'a', 'b'],
   );
   assert.deepEqual(moveId(['a', 'b', 'c'], 'c', 'a'), ['c', 'a', 'b']);
+  assert.deepEqual(moveId(['a', 'b', 'c'], 'a', 'b', true), ['b', 'a', 'c']);
+  assert.deepEqual(moveId(['a', 'b', 'c'], 'a', 'c', true), ['b', 'c', 'a']);
   assert.deepEqual(moveId(['a', 'b', 'c'], 'a', 'missing'), ['b', 'c', 'a']);
 });
 

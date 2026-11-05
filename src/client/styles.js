@@ -847,6 +847,32 @@ export const STYLES = `
   color: var(--dsw-alias-label-primary);
 }
 .dsv-sideRow + .dsv-sideRow { margin-top: 2px; }
+.dsv-sideRow[draggable="true"],
+.dsv-sideGroupHead[draggable="true"] { -webkit-user-select: none; user-select: none; }
+.dsv-sideRow[draggable="true"] { cursor: grab; }
+.dsv-sideRow[draggable="true"]:active { cursor: grabbing; }
+body.dsv-dragging,
+body.dsv-dragging * { -webkit-user-select: none !important; user-select: none !important; }
+.dsv-dragSource { opacity: 0.45; }
+.dsv-sideRow.dsv-dropBefore::before,
+.dsv-sideRow.dsv-dropAfter::after {
+  position: absolute;
+  right: 8px;
+  left: 8px;
+  z-index: 2;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--dsw-alias-state-business-primary);
+  content: "";
+  pointer-events: none;
+}
+.dsv-sideRow.dsv-dropBefore::before { top: -2px; }
+.dsv-sideRow.dsv-dropAfter::after { bottom: -2px; }
+.dsv-sideGroupHead.dsv-dropTarget {
+  border-radius: var(--dsw-radius-md, 8px);
+  background: var(--dsw-alias-interactive-bg-hover);
+  box-shadow: inset 0 2px 0 var(--dsw-alias-state-business-primary);
+}
 .dsv-sideRow:hover,
 .dsv-sideRow:focus-within { background: var(--dsw-alias-interactive-bg-hover); }
 .dsv-sideOpen {
