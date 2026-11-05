@@ -1,9 +1,8 @@
 import { createPortal } from 'react-dom';
 import { useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { LayoutIcon } from './icons.jsx';
 import { STYLES } from './styles.js';
 import { SidebarWorkspacePane } from './sidebar-workspace.jsx';
-import { getPrefs, setPrefs, subscribePrefs } from './prefs.js';
+import { getPrefs, subscribePrefs } from './prefs.js';
 
 const NARROW_WIDTH = 150;
 
@@ -12,16 +11,15 @@ function usePrefs() {
 }
 
 /**
- * Sidebar footer action that also hosts the session pane.
+ * Invisible sidebar action that hosts the session pane.
  *
  * The top-level panel menu is gone, so nothing in `sidebar.panellist` mounts
- * this plugin. The footer action is the one stable mount point: it renders the
- * mode switch and portals the full session pane after the panel nav, hiding
- * the native workspace region while the session mode is active. Keeping the
- * native browser mounted makes "switch back to native" instant and lossless.
+ * this plugin. The footer action is the one stable mount point: it renders a
+ * zero-size anchor and portals the full session pane after the panel nav,
+ * hiding the native workspace region while the session mode is active. The
+ * mode switch lives in Settings, so the sidebar keeps no extra bottom button.
  */
 export function SidebarHost({
-  wide,
   t,
   useSessions,
   useSessionStatus,
@@ -152,22 +150,9 @@ export function SidebarHost({
     };
   }, [active, host]);
 
-  const next = prefs.mode === 'session' ? 'native' : 'session';
-  const label = prefs.mode === 'session' ? t('side.native') : t('side.sessionView');
-
   return (
     <>
-      <button
-        ref={anchorRef}
-        type="button"
-        className={wide ? 'dsv-footBtn' : 'dsv-footIcon'}
-        aria-label={t(prefs.mode === 'session' ? 'side.switch.native' : 'side.switch.session')}
-        title={label}
-        onClick={() => setPrefs({ mode: next })}
-      >
-        <LayoutIcon size={16} />
-        {wide && <span>{label}</span>}
-      </button>
+      <span ref={anchorRef} className="dsv-footAnchor" aria-hidden="true" />
       {active &&
         createPortal(
           <div
