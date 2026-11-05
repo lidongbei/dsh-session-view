@@ -372,6 +372,16 @@ export function trashRows(items, byId = {}) {
     .sort((a, b) => (b.deletedAt ?? 0) - (a.deletedAt ?? 0));
 }
 
+/**
+ * Errors that mean the row no longer matches its host state: the session was
+ * deleted, already archived, or the archive index moved on. Such rows should be
+ * dropped from the current list instead of being retried forever.
+ */
+export function isStaleSessionError(error) {
+  const text = String(error?.message ?? error?.error?.message ?? error ?? '');
+  return /not found|does not exist|no such session|unknown session|missing session|already archived|not archived|already trashed|not in trash|找不到|不存在|已归档|未归档|回收站中不存在/i.test(text);
+}
+
 /** Archived session ids that still exist in the snapshot, newest first. */
 export function archivedRows(sessions, archivedIds, workspaces) {
   const byId = sessions?.byId ?? {};

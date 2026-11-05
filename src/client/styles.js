@@ -58,7 +58,7 @@ export const STYLES = `
 .dsv-total {
   flex: none;
   padding-top: 4px;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--dsw-alias-label-tertiary);
   font-variant-numeric: tabular-nums;
 }
@@ -488,9 +488,9 @@ export const STYLES = `
 .dsv-sectionChevron[data-collapsed="true"] { transform: rotate(-90deg); }
 .dsv-sectionTitle {
   margin: 0;
-  font-size: 14px;
-  font-weight: 500;
-  letter-spacing: 0.02em;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
   color: var(--dsw-alias-label-secondary);
 }
 .dsv-sectionCount {

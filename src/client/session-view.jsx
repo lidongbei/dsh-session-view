@@ -8,6 +8,7 @@ import {
   countByStatus,
   filterRows,
   formatRelativeTime,
+  isStaleSessionError,
   matchesQuery,
   pendingLabelKey,
   splitSections,
@@ -81,6 +82,7 @@ export function SessionView({
   const [confirm, setConfirm] = useState(null);
   const [toast, setToast] = useState(null);
   const [trash, setTrash] = useState({ state: 'idle', items: [], error: null });
+  const [staleIds, setStaleIds] = useState(() => new Set());
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 60_000);
@@ -125,8 +127,8 @@ export function SessionView({
     // them: subagent sessions are execution detail, not management rows.
     const annotatedRows = annotateRows(rows, statuses);
     const visible = prefs.showSubagents ? annotatedRows : annotatedRows.filter((row) => row.session.origin !== 'subagent');
-    return visible.filter((row) => !trashedIds.has(row.session.id));
-  }, [sessions, statuses, workspaces, prefs.showSubagents, trashedIds]);
+    return visible.filter((row) => !trashedIds.has(row.session.id) && !staleIds.has(row.session.id));
+  }, [sessions, statuses, workspaces, prefs.showSubagents, trashedIds, staleIds]);
 
   const scopeRows = useMemo(
     () => filterRows(annotated, { query, workspaceId, status: ALL }),
@@ -143,15 +145,15 @@ export function SessionView({
   );
   const archived = useMemo(() => {
     const all = archivedRows(sessions, workspaces?.archivedSessionIds, workspaces)
-      .filter((row) => !trashedIds.has(row.session.id));
+      .filter((row) => !trashedIds.has(row.session.id) && !staleIds.has(row.session.id));
     const rows = prefs.showSubagents ? all : all.filter((row) => row.session.origin !== 'subagent');
     return rows.filter((row) => matchesQuery(row, query));
-  }, [sessions, workspaces?.archivedSessionIds, query, prefs.showSubagents, trashedIds]);
+  }, [sessions, workspaces?.archivedSessionIds, query, prefs.showSubagents, trashedIds, staleIds]);
   const trashed = useMemo(() => {
     const all = trashRows(trash.items, sessions?.byId);
     const rows = prefs.showSubagents ? all : all.filter((row) => row.session.origin !== 'subagent');
-    return rows.filter((row) => matchesQuery(row, query));
-  }, [trash.items, sessions?.byId, query, prefs.showSubagents]);
+    return rows.filter((row) => matchesQuery(row, query) && !staleIds.has(row.session.id));
+  }, [trash.items, sessions?.byId, query, prefs.showSubagents, staleIds]);
 
   const workspaceOptions = useMemo(() => {
     const byWorkspace = new Map();
@@ -201,6 +203,25 @@ export function SessionView({
     setToast({ text: t('toast.failed', { message: errorText(failures[0]) }), tone: 'error' });
   };
 
+  const markStale = (ids) => {
+    const unique = [...new Set(ids.filter(Boolean))];
+    if (unique.length === 0) return 0;
+    setStaleIds((prev) => {
+      const next = new Set(prev);
+      unique.forEach((id) => next.add(id));
+      return next;
+    });
+    return unique.length;
+  };
+
+  const reportStale = (count) => {
+    if (!count) return;
+    setToast((prev) => ({
+      text: prev?.text ? `${prev.text} · ${t('toast.stale', { n: count })}` : t('toast.stale', { n: count }),
+      tone: 'error',
+    }));
+  };
+
   const toggleSelect = (id) => {
     setSelected((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
   };
@@ -212,7 +233,12 @@ export function SessionView({
     try {
       await (pinned ? unpinSession(id) : pinSession(id));
     } catch (error) {
-      setToast({ text: t('toast.failed', { message: errorText(error) }), tone: 'error' });
+      if (isStaleSessionError(error)) {
+        markStale([id]);
+        setToast({ text: t('toast.stale', { n: 1 }), tone: 'error' });
+      } else {
+        setToast({ text: t('toast.failed', { message: errorText(error) }), tone: 'error' });
+      }
     } finally {
       setBusy(false);
     }
@@ -231,7 +257,9 @@ export function SessionView({
         failures.push({ id, error });
       }
     }
+    const stale = markStale(failures.filter((item) => isStaleSessionError(item.error)).map((item) => item.id));
     notify(ok === 0 ? '' : t('toast.archived', { n: ok }), failures, ok);
+    reportStale(stale);
     setSelected([]);
   };
 
@@ -244,6 +272,7 @@ export function SessionView({
       .map((result, index) => (result.status === 'rejected' ? { sessionId: ids[index], error: result.reason } : null))
       .filter(Boolean);
     const ready = rows.filter((_, index) => archived[index].status === 'fulfilled');
+    let stale = markStale(failures.filter((item) => isStaleSessionError(item.error)).map((item) => item.sessionId));
     if (ready.length > 0) {
       try {
         const result = await addToTrash(
@@ -253,12 +282,16 @@ export function SessionView({
             cwd: row.session.cwd || '',
           })),
         );
-        if (Array.isArray(result.failed)) failures.push(...result.failed);
+        if (Array.isArray(result.failed)) {
+          failures.push(...result.failed);
+          stale += markStale(result.failed.filter((item) => isStaleSessionError(item.error)).map((item) => item.sessionId));
+        }
         const added = new Set(ready.map((row) => row.session.id));
         for (const failed of result.failed ?? []) added.delete(failed.sessionId);
         await Promise.allSettled([...added].map((id) => unarchiveSession(id)));
         const ok = result.added ?? added.size;
         notify(ok === 0 ? '' : t('toast.trashed', { n: ok }), failures, ok);
+        reportStale(stale);
         await loadTrash();
       } catch (error) {
         failures.push({ error });
@@ -266,6 +299,7 @@ export function SessionView({
       }
     } else {
       notify('', failures);
+      reportStale(stale);
     }
     setSelected([]);
   };
@@ -278,10 +312,12 @@ export function SessionView({
         await unarchiveSession(id);
         ok += 1;
       } catch (error) {
-        failures.push({ error });
+        failures.push({ id, error });
       }
     }
+    const stale = markStale(failures.filter((item) => isStaleSessionError(item.error)).map((item) => item.id));
     notify(ok === 0 ? '' : t('toast.restored', { n: ok }), failures, ok);
+    reportStale(stale);
     if (tab === 'trash') await loadTrash();
     setSelected([]);
   };
@@ -291,7 +327,9 @@ export function SessionView({
       const result = await restoreTrash(ids);
       const failures = Array.isArray(result.failed) ? result.failed : [];
       const ok = result.restored ?? ids.length - failures.length;
+      const stale = markStale(failures.filter((item) => isStaleSessionError(item.error)).map((item) => item.sessionId));
       notify(ok === 0 ? '' : t('toast.restored', { n: ok }), failures, ok);
+      reportStale(stale);
       await Promise.allSettled(ids.map((id) => unarchiveSession(id)));
       await loadTrash();
     } catch (error) {
@@ -614,6 +652,9 @@ export function SessionView({
     trash: trashed.length,
   };
 
+  const sectionKeys = sectionList.map(([key]) => key);
+  const allCollapsed = sectionKeys.length > 0 && sectionKeys.every((key) => collapsedSections.has(key));
+
   const emptyNode = (() => {
     if (tab === 'trash') {
       if (trash.state === 'loading') return <p className="dsv-emptyHint">{t('loading')}</p>;
@@ -675,6 +716,14 @@ export function SessionView({
           )}
           {tab !== 'settings' && (
             <div className="dsv-headActions">
+              <button
+                type="button"
+                className="dsv-btn"
+                disabled={sectionKeys.length === 0}
+                onClick={() => setCollapsedSections(allCollapsed ? new Set() : new Set(sectionKeys))}
+              >
+                {t(allCollapsed ? 'action.expandAll' : 'action.collapseAll')}
+              </button>
               <button
                 type="button"
                 className="dsv-btn"

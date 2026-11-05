@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   archivedRows,
+  isStaleSessionError,
   splitSections,
   topRows,
   trashRows,
@@ -87,6 +88,13 @@ test('archivedRows keeps existing sessions, sorts by recency and resolves worksp
   assert.equal(rows[0].archived, true);
   assert.equal(rows[0].workspace?.workspaceId, 'w2');
   assert.equal(rows[1].workspace?.workspaceId, 'w1');
+});
+
+test('isStaleSessionError recognizes vanished or already-transitioned sessions', () => {
+  assert.equal(isStaleSessionError(new Error('session not found')), true);
+  assert.equal(isStaleSessionError(new Error('Session is already archived')), true);
+  assert.equal(isStaleSessionError('该会话不存在'), true);
+  assert.equal(isStaleSessionError(new Error('network timeout')), false);
 });
 
 test('projectKeyFor mirrors the JSONL backend directory naming', () => {
