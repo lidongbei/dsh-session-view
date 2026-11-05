@@ -629,3 +629,40 @@ export function restrictWorkspacesToIds(workspaces, ids) {
     items: (workspaces?.items ?? []).filter((workspace) => workspace && ids.has(workspace.workspaceId)),
   };
 }
+
+/** Rename one focus group; returns a prefs patch so both dialogs can share it. */
+export function renameFocusGroup(prefs, id, name) {
+  const groups = prefs?.focusGroups ?? [];
+  if (!groups.some((group) => group.id === id)) return {};
+  const next = String(name ?? '').trim().slice(0, 60);
+  return {
+    focusGroups: groups.map((group) => (group.id === id ? { ...group, name: next } : group)),
+  };
+}
+
+/** Delete one focus group and drop the state that pointed at it. */
+export function removeFocusGroup(prefs, id) {
+  const groups = prefs?.focusGroups ?? [];
+  if (!groups.some((group) => group.id === id)) return {};
+  return {
+    focusGroups: groups.filter((group) => group.id !== id),
+    focusExpanded: (prefs?.focusExpanded ?? []).filter((entry) => entry !== id),
+    ...(prefs?.focusGroupId === id ? { focusGroupId: '' } : {}),
+  };
+}
+
+/** Add or remove one workspace from a group's member list. */
+export function toggleFocusGroupMember(prefs, id, workspaceId) {
+  const groups = prefs?.focusGroups ?? [];
+  if (!groups.some((group) => group.id === id)) return {};
+  return {
+    focusGroups: groups.map((group) => {
+      if (group.id !== id) return group;
+      const current = group.workspaceIds ?? [];
+      const workspaceIds = current.includes(workspaceId)
+        ? current.filter((entry) => entry !== workspaceId)
+        : [...current, workspaceId];
+      return { ...group, workspaceIds };
+    }),
+  };
+}

@@ -7,7 +7,7 @@
 import { useState } from 'react';
 import { ConfirmDialog, Dialog } from './dialog.jsx';
 import { TargetIcon } from './icons.jsx';
-import { focusGroupById, workspaceLabel } from './logic.js';
+import { focusGroupById, toggleFocusGroupMember, workspaceLabel } from './logic.js';
 
 const CHIP_LIMIT = 4;
 
@@ -78,6 +78,79 @@ export function FocusBar({ t, prefs, onManage, onExit }) {
   );
 }
 
+/**
+ * Workspace checkbox list shared by the manager dialog and the single-group
+ * member dialog. The caller owns the persistence.
+ */
+export function FocusMemberEditor({ t, group, workspaces, onToggle, onSelectAll, onClearAll }) {
+  const items = workspaces?.items ?? [];
+  const selected = group?.workspaceIds ?? [];
+  return (
+    <div className="dsv-focusMembers">
+      <div className="dsv-focusMembersHead">
+        <span>{t('focus.selectedCount', { n: selected.length })}</span>
+        <span className="dsv-focusMembersTools">
+          <button type="button" className="dsv-sideTextBtn" onClick={onSelectAll}>
+            {t('focus.selectAll')}
+          </button>
+          <button type="button" className="dsv-sideTextBtn" onClick={onClearAll}>
+            {t('focus.clearAll')}
+          </button>
+        </span>
+      </div>
+      {items.length === 0 ? (
+        <p className="dsv-sideHint">{t('focus.noWorkspaces')}</p>
+      ) : (
+        items.map((workspace) => (
+          <label className="dsv-sideCheck" key={workspace.workspaceId}>
+            <input
+              type="checkbox"
+              checked={selected.includes(workspace.workspaceId)}
+              onChange={() => onToggle(workspace.workspaceId)}
+            />
+            <span>{workspaceLabel(workspace)}</span>
+          </label>
+        ))
+      )}
+    </div>
+  );
+}
+
+/** Single-group dialog opened from that group's sidebar context menu. */
+export function FocusMembersDialog({ t, prefs, workspaces, groupId, onChange, onClose }) {
+  const groups = prefs?.focusGroups ?? [];
+  const group = groups.find((entry) => entry.id === groupId);
+  if (!group) return null;
+  const items = workspaces?.items ?? [];
+  const setIds = (workspaceIds) => {
+    onChange({ focusGroups: updateGroup(groups, group.id, { workspaceIds }) });
+  };
+  const toggle = (workspaceId) => {
+    onChange(toggleFocusGroupMember(prefs, group.id, workspaceId));
+  };
+  return (
+    <Dialog
+      title={t('focus.members.title')}
+      onClose={onClose}
+      footer={
+        <button type="button" className="dsv-btn" data-tone="primary" onClick={onClose}>
+          {t('focus.done')}
+        </button>
+      }
+    >
+      <p className="dsv-focusDialogName">{groupLabel(t, prefs, group)}</p>
+      <FocusMemberEditor
+        t={t}
+        group={group}
+        workspaces={workspaces}
+        onToggle={toggle}
+        onSelectAll={() => setIds(items.map((workspace) => workspace.workspaceId))}
+        onClearAll={() => setIds([])}
+      />
+    </Dialog>
+  );
+}
+
 /** Manager dialog: switch, create, rename, edit members and delete groups. */
 export function FocusDialog({ t, prefs, workspaces, onChange, onClose }) {
   const [creating, setCreating] = useState(false);
@@ -110,10 +183,7 @@ export function FocusDialog({ t, prefs, workspaces, onChange, onClose }) {
   };
 
   const toggleMember = (group, workspaceId) => {
-    const workspaceIds = group.workspaceIds.includes(workspaceId)
-      ? group.workspaceIds.filter((id) => id !== workspaceId)
-      : [...group.workspaceIds, workspaceId];
-    setMembers(group, workspaceIds);
+    onChange(toggleFocusGroupMember(prefs, group.id, workspaceId));
   };
 
   const create = () => {
@@ -328,37 +398,14 @@ export function FocusDialog({ t, prefs, workspaces, onChange, onClose }) {
               </div>
 
               {editingId === group.id && (
-                <div className="dsv-focusMembers">
-                  <div className="dsv-focusMembersHead">
-                    <span>{t('focus.selectedCount', { n: group.workspaceIds.length })}</span>
-                    <span className="dsv-focusMembersTools">
-                      <button
-                        type="button"
-                        className="dsv-sideTextBtn"
-                        onClick={() => setMembers(group, items.map((workspace) => workspace.workspaceId))}
-                      >
-                        {t('focus.selectAll')}
-                      </button>
-                      <button type="button" className="dsv-sideTextBtn" onClick={() => setMembers(group, [])}>
-                        {t('focus.clearAll')}
-                      </button>
-                    </span>
-                  </div>
-                  {items.length === 0 ? (
-                    <p className="dsv-sideHint">{t('focus.noWorkspaces')}</p>
-                  ) : (
-                    items.map((workspace) => (
-                      <label className="dsv-sideCheck" key={workspace.workspaceId}>
-                        <input
-                          type="checkbox"
-                          checked={group.workspaceIds.includes(workspace.workspaceId)}
-                          onChange={() => toggleMember(group, workspace.workspaceId)}
-                        />
-                        <span>{workspaceLabel(workspace)}</span>
-                      </label>
-                    ))
-                  )}
-                </div>
+                <FocusMemberEditor
+                  t={t}
+                  group={group}
+                  workspaces={workspaces}
+                  onToggle={(workspaceId) => toggleMember(group, workspaceId)}
+                  onSelectAll={() => setMembers(group, items.map((workspace) => workspace.workspaceId))}
+                  onClearAll={() => setMembers(group, [])}
+                />
               )}
             </article>
           );

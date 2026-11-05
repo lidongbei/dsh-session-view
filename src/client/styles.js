@@ -1411,6 +1411,7 @@ body.dsv-dragging * { -webkit-user-select: none !important; user-select: none !i
 .dsv-focusBody { display: flex; flex-direction: column; gap: 2px; margin: 0 0 4px 9px; padding-left: 5px; border-left: 1px solid var(--dsw-alias-border-l3); }
 .dsv-focusBody .dsv-sideGroupHead { border-radius: 7px; }
 .dsv-focusEmptyBody { padding: 2px 6px 4px; }
+.dsv-focusDialogName { margin: 0 0 6px; color: var(--dsw-alias-label-secondary); font-size: 12px; font-weight: 600; }
 `;
 
 export const BOARD_ONLY_STYLES = '';

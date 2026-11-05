@@ -15,6 +15,8 @@ import {
   groupByWorkspace,
   moveId,
   pendingLabelKey,
+  removeFocusGroup,
+  renameFocusGroup,
   restrictWorkspaces,
   restrictWorkspacesToIds,
   sessionTitle,
@@ -28,7 +30,7 @@ import { addToTrash } from './api.js';
 import { getPrefs, setPrefs, subscribePrefs } from './prefs.js';
 import { addTrashIds, getTrashIds, refreshTrash, subscribeTrash } from './trash-store.js';
 import { ConfirmDialog, Dialog, PromptDialog } from './dialog.jsx';
-import { FocusBar, FocusDialog, groupLabel, memberSummary } from './focus-mode.jsx';
+import { FocusBar, FocusDialog, FocusMembersDialog, groupLabel, memberSummary } from './focus-mode.jsx';
 import { STYLES } from './styles.js';
 import {
   ActivityIcon,
@@ -591,8 +593,27 @@ export function SidebarWorkspacePane({
         >
           {label}
         </button>
-        <button type="button" role="menuitem" onClick={() => { closeMenus(); setDialog({ kind: 'focus' }); }}>
-          {t('focus.manage')}
+        <button
+          type="button"
+          role="menuitem"
+          onClick={() => { closeMenus(); setDialog({ kind: 'focusRename', id: focus.id }); }}
+        >
+          {t('action.rename')}
+        </button>
+        <button
+          type="button"
+          role="menuitem"
+          onClick={() => { closeMenus(); setDialog({ kind: 'focusMembers', id: focus.id }); }}
+        >
+          {t('focus.editMembers')}
+        </button>
+        <button
+          type="button"
+          role="menuitem"
+          className="dsv-danger"
+          onClick={() => { closeMenus(); setDialog({ kind: 'focusDelete', id: focus.id }); }}
+        >
+          {t('dialog.delete')}
         </button>
       </>
     );
@@ -1307,6 +1328,53 @@ export function SidebarWorkspacePane({
           onClose={() => setDialog(null)}
         />
       )}
+
+      {dialog?.kind === 'focusRename' && (() => {
+        const group = prefs.focusGroups.find((entry) => entry.id === dialog.id);
+        if (!group) return null;
+        return (
+          <PromptDialog
+            t={t}
+            title={t('focus.rename.title')}
+            label={t('focus.rename.title')}
+            initial={groupLabel(t, prefs, group)}
+            onClose={() => setDialog(null)}
+            onSubmit={(value) => {
+              setDialog(null);
+              setPrefs(renameFocusGroup(prefs, group.id, value));
+            }}
+          />
+        );
+      })()}
+
+      {dialog?.kind === 'focusMembers' && (
+        <FocusMembersDialog
+          t={t}
+          prefs={prefs}
+          workspaces={workspaces}
+          groupId={dialog.id}
+          onChange={(patch) => setPrefs(patch)}
+          onClose={() => setDialog(null)}
+        />
+      )}
+
+      {dialog?.kind === 'focusDelete' && (() => {
+        const group = prefs.focusGroups.find((entry) => entry.id === dialog.id);
+        if (!group) return null;
+        return (
+          <ConfirmDialog
+            t={t}
+            title={t('focus.delete.title')}
+            body={t('focus.delete.body', { name: groupLabel(t, prefs, group) })}
+            confirmKey="dialog.delete"
+            onClose={() => setDialog(null)}
+            onConfirm={() => {
+              setDialog(null);
+              setPrefs(removeFocusGroup(prefs, group.id));
+            }}
+          />
+        );
+      })()}
 
       {contextMenu && contextItems && createPortal(
         <div

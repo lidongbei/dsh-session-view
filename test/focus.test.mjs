@@ -11,8 +11,11 @@ import {
   focusIncludesWorkspace,
   focusWorkspaceIds,
   filterRowsByWorkspaceIds,
+  removeFocusGroup,
+  renameFocusGroup,
   restrictWorkspacesToIds,
   restrictWorkspaces,
+  toggleFocusGroupMember,
 } from '../src/client/logic.js';
 import { getPrefs, resetPrefs, setPrefs } from '../src/client/prefs.js';
 
@@ -121,11 +124,39 @@ test('focus member helpers scope rows and workspaces to an explicit id set', () 
   assert.deepEqual(restrictWorkspacesToIds(workspaces, new Set()).items, []);
 });
 
+test('focus group helpers rename, delete and toggle members in place', () => {
+  const prefs = {
+    focusGroups: [
+      { id: 'g1', name: '前端', workspaceIds: ['w1', 'w2'] },
+      { id: 'g2', name: '', workspaceIds: ['w3'] },
+    ],
+    focusGroupId: 'g1',
+    focusExpanded: ['g1', 'g2'],
+  };
+
+  const renamed = renameFocusGroup(prefs, 'g1', '  新名字  ');
+  assert.deepEqual(renamed.focusGroups[0], { id: 'g1', name: '新名字', workspaceIds: ['w1', 'w2'] });
+  assert.deepEqual(renamed.focusGroups[1], prefs.focusGroups[1]);
+  assert.deepEqual(renameFocusGroup(prefs, 'gone', 'x'), {});
+  assert.equal(renameFocusGroup(prefs, 'g1', 'x'.repeat(80)).focusGroups[0].name.length, 60);
+
+  const removed = removeFocusGroup(prefs, 'g1');
+  assert.deepEqual(removed.focusGroups.map((entry) => entry.id), ['g2']);
+  assert.deepEqual(removed.focusExpanded, ['g2']);
+  assert.equal(removed.focusGroupId, '');
+  assert.deepEqual(removeFocusGroup(prefs, 'gone'), {});
+  assert.equal('focusGroupId' in removeFocusGroup({ ...prefs, focusGroupId: 'g2' }, 'g1'), false);
+
+  assert.deepEqual(toggleFocusGroupMember(prefs, 'g2', 'w3').focusGroups[1].workspaceIds, []);
+  assert.deepEqual(toggleFocusGroupMember(prefs, 'g2', 'w4').focusGroups[1].workspaceIds, ['w3', 'w4']);
+  assert.deepEqual(toggleFocusGroupMember(prefs, 'gone', 'w1'), {});
+});
+
 const fixture = `
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { SidebarWorkspacePane } from ${JSON.stringify(resolve(root, 'src/client/sidebar-workspace.jsx'))};
-import { FocusBar, createGroupId, groupLabel, groupName, memberSummary, updateGroup } from ${JSON.stringify(resolve(root, 'src/client/focus-mode.jsx'))};
+import { FocusBar, FocusMemberEditor, createGroupId, groupLabel, groupName, memberSummary, updateGroup } from ${JSON.stringify(resolve(root, 'src/client/focus-mode.jsx'))};
 import { zh } from ${JSON.stringify(resolve(root, 'src/client/locales.js'))};
 import { resetPrefs, setPrefs } from ${JSON.stringify(resolve(root, 'src/client/prefs.js'))};
 
@@ -206,6 +237,14 @@ globalThis.__FOCUS_BAR_HTML = renderToStaticMarkup(React.createElement(FocusBar,
   onManage: () => {},
   onExit: () => {},
 }));
+globalThis.__FOCUS_MEMBERS_HTML = renderToStaticMarkup(React.createElement(FocusMemberEditor, {
+  t,
+  group: { id: 'g1', name: '前端', workspaceIds: ['w1'] },
+  workspaces,
+  onToggle: () => {},
+  onSelectAll: () => {},
+  onClearAll: () => {},
+}));
 
 setPrefs({ focusGroups: [{ id: 'g2', name: '', workspaceIds: ['w3'] }], focusGroupId: 'g2' });
 globalThis.__FOCUS_EMPTY_HTML = renderToStaticMarkup(React.createElement(SidebarWorkspacePane, props));
@@ -241,12 +280,14 @@ test('focus mode filters the sidebar by the selected workspaces', async () => {
     const bar = globalThis.__FOCUS_BAR_HTML;
     const empty = globalThis.__FOCUS_EMPTY_HTML;
     const expanded = globalThis.__FOCUS_EXPANDED_HTML;
+    const members = globalThis.__FOCUS_MEMBERS_HTML;
     const helpers = globalThis.__FOCUS_HELPERS;
     delete globalThis.__FOCUS_OFF_HTML;
     delete globalThis.__FOCUS_ON_HTML;
     delete globalThis.__FOCUS_BAR_HTML;
     delete globalThis.__FOCUS_EMPTY_HTML;
     delete globalThis.__FOCUS_EXPANDED_HTML;
+    delete globalThis.__FOCUS_MEMBERS_HTML;
     delete globalThis.__FOCUS_HELPERS;
 
     assert.match(helpers.id, /^focus-[a-z0-9]+-[a-z0-9]+$/);
@@ -294,6 +335,12 @@ test('focus mode filters the sidebar by the selected workspaces', async () => {
     assert.ok(body.includes('App task one') && body.includes('App task two'), 'the body must list member sessions');
     assert.ok(!body.includes('Lib task'), 'the body must not list sessions of non-member workspaces');
     assert.ok(!expanded.includes('dsv-focusRowEdit'), 'expanded rows must still avoid a per-row manage button');
+
+    assert.ok(members.includes('class="dsv-focusMembers"'), 'member editor must render for the members dialog');
+    assert.equal((members.match(/type="checkbox"/g) ?? []).length, 3, 'member editor must offer one checkbox per workspace');
+    assert.match(members, /已选 1 个工作区/, 'member editor must show the selected count');
+    assert.ok(members.includes('全选') && members.includes('清空'), 'member editor must offer bulk selection');
+    assert.ok(members.includes('App') && members.includes('Lib') && members.includes('Other'), 'member editor must list every workspace');
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -305,4 +352,11 @@ test('focus context menu stays wired into the sidebar menu portal', async () => 
   assert.match(source, /\{contextMenu && contextItems && createPortal\(/, 'context menu portal must render every resolved kind');
   assert.match(source, /setContextMenu\(\{ kind: 'focus', id: entry\.id/, 'focus rows must open the context menu');
   assert.match(source, /kind === 'focus'/, 'focus kind must be recognized when resolving the menu target');
+  assert.match(source, /setDialog\(\{ kind: 'focusRename', id: focus\.id \}\)/, 'focus menu must offer an in-place rename');
+  assert.match(source, /setDialog\(\{ kind: 'focusMembers', id: focus\.id \}\)/, 'focus menu must offer member editing');
+  assert.match(source, /setDialog\(\{ kind: 'focusDelete', id: focus\.id \}\)/, 'focus menu must offer deletion');
+  const menuStart = source.indexOf('const contextFocusItems =');
+  const menuEnd = source.indexOf('const contextRow', menuStart);
+  assert.ok(menuStart > -1 && menuEnd > menuStart, 'per-group menu must stay resolvable');
+  assert.ok(!source.slice(menuStart, menuEnd).includes("t('focus.manage')"), 'per-group menu must not fall back to the global manager entry');
 });
