@@ -7,6 +7,7 @@ import {
   buildRows,
   countByStatus,
   filterRows,
+  focusGroupById,
   formatRelativeTime,
   isStaleSessionError,
   matchesQuery,
@@ -17,8 +18,9 @@ import {
   workspaceLabel,
 } from './logic.js';
 import { addToTrash, fetchTrash, purgeTrash, restoreTrash } from './api.js';
-import { getPrefs, subscribePrefs } from './prefs.js';
+import { getPrefs, setPrefs, subscribePrefs } from './prefs.js';
 import { addTrashIds, removeTrashIds, setTrashItems } from './trash-store.js';
+import { FocusDialog } from './focus-mode.jsx';
 import { STYLES } from './styles.js';
 import {
   ArchiveIcon,
@@ -26,6 +28,7 @@ import {
   PinIcon,
   RestoreIcon,
   SearchIcon,
+  TargetIcon,
   TrashIcon,
 } from './icons.jsx';
 
@@ -66,6 +69,7 @@ export function SessionView({
   unarchiveSession,
 }) {
   const prefs = useSyncExternalStore(subscribePrefs, getPrefs, getPrefs);
+  const focusGroup = focusGroupById(prefs);
   const sessions = useSessions((state) => state);
   const statuses = useSessionStatus((state) => state);
   const workspaces = useWorkspaces((state) => state);
@@ -78,6 +82,7 @@ export function SessionView({
   const [groupWorkspaces, setGroupWorkspaces] = useState(true);
   const [collapsedSections, setCollapsedSections] = useState(() => new Set());
   const [manage, setManage] = useState(false);
+  const [focusOpen, setFocusOpen] = useState(false);
   const [selected, setSelected] = useState([]);
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState(null);
@@ -790,6 +795,16 @@ export function SessionView({
           <div className="dsv-toolbarActions">
             <button
               type="button"
+              className="dsv-btn dsv-focusEntry"
+              aria-pressed={Boolean(focusGroup)}
+              onClick={() => setFocusOpen(true)}
+            >
+              <TargetIcon size={12} />
+              <span>{t('focus.entry')}</span>
+              {focusGroup && <span className="dsv-focusEntryDot" aria-hidden="true" />}
+            </button>
+            <button
+              type="button"
               className="dsv-btn"
               disabled={sectionKeys.length === 0}
               onClick={() => setCollapsedSections(allCollapsed ? new Set() : new Set(sectionKeys))}
@@ -929,6 +944,16 @@ export function SessionView({
         )}
       </div>
       </div>
+
+      {focusOpen && (
+        <FocusDialog
+          t={t}
+          prefs={prefs}
+          workspaces={workspaces}
+          onChange={(patch) => setPrefs(patch)}
+          onClose={() => setFocusOpen(false)}
+        />
+      )}
 
       {confirm && confirmCopy && (
         <div className="dsv-dialogOverlay" role="presentation">

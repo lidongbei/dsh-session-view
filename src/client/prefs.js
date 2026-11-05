@@ -27,11 +27,31 @@ export const DEFAULT_PREFS = Object.freeze({
   nestWorkspaces: true,
   manualOrder: Object.freeze({}),
   collapsedGroups: Object.freeze([]),
+  focusGroups: Object.freeze([]),
+  focusGroupId: '',
 });
 
 const MODES = new Set(['session', 'native']);
 const ARCHIVED = new Set(['hide', 'show', 'only']);
 const SORTS = new Set(['updated', 'manual']);
+
+function sanitizeFocusGroups(input) {
+  if (!Array.isArray(input)) return [];
+  const seen = new Set();
+  const groups = [];
+  for (const entry of input) {
+    if (!entry || typeof entry !== 'object') continue;
+    const id = typeof entry.id === 'string' ? entry.id.trim().slice(0, 80) : '';
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    const name = typeof entry.name === 'string' ? entry.name.trim().slice(0, 60) : '';
+    const workspaceIds = Array.isArray(entry.workspaceIds)
+      ? [...new Set(entry.workspaceIds.filter((workspaceId) => typeof workspaceId === 'string' && workspaceId))]
+      : [];
+    groups.push({ id, name, workspaceIds });
+  }
+  return groups;
+}
 
 function sanitize(raw) {
   const value = raw && typeof raw === 'object' ? raw : {};
@@ -49,6 +69,8 @@ function sanitize(raw) {
   const collapsedGroups = Array.isArray(value.collapsedGroups)
     ? value.collapsedGroups.filter((key) => typeof key === 'string')
     : [];
+  const focusGroups = sanitizeFocusGroups(value.focusGroups);
+  const focusGroupId = focusGroups.some((group) => group.id === value.focusGroupId) ? value.focusGroupId : '';
   return {
     mode: MODES.has(value.mode) ? value.mode : DEFAULT_PREFS.mode,
     activeLimit: clampLimit(value.activeLimit, DEFAULT_PREFS.activeLimit),
@@ -67,11 +89,13 @@ function sanitize(raw) {
     nestWorkspaces: value.nestWorkspaces !== false,
     manualOrder,
     collapsedGroups,
+    focusGroups,
+    focusGroupId,
   };
 }
 
 function fresh() {
-  return { ...DEFAULT_PREFS, manualOrder: {}, collapsedGroups: [] };
+  return { ...DEFAULT_PREFS, manualOrder: {}, collapsedGroups: [], focusGroups: [], focusGroupId: '' };
 }
 
 function load() {

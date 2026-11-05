@@ -558,3 +558,54 @@ export function watermarkLimit(rows, base, ceiling = 50) {
   }
   return Math.min(Math.max(base, qualifying + 1), ceiling);
 }
+
+/** The active focus group, or undefined when focus mode is off or stale. */
+export function focusGroupById(prefs, id = prefs?.focusGroupId) {
+  if (!id) return undefined;
+  return (prefs?.focusGroups ?? []).find((group) => group.id === id);
+}
+
+/**
+ * Workspace ids of the active focus group. Returns null when no focus group is
+ * active, which callers treat as "no filtering" rather than "filter everything".
+ */
+export function focusWorkspaceIds(prefs) {
+  const group = focusGroupById(prefs);
+  if (!group) return null;
+  return new Set(group.workspaceIds ?? []);
+}
+
+/** Whether a session belonging to `workspaceId` stays visible under focus. */
+export function focusIncludesWorkspace(prefs, workspaceId) {
+  const ids = focusWorkspaceIds(prefs);
+  if (!ids) return true;
+  return typeof workspaceId === 'string' && ids.has(workspaceId);
+}
+
+/** Drop rows outside the active focus group; a no-op when focus mode is off. */
+export function filterRowsByFocus(rows, prefs) {
+  const ids = focusWorkspaceIds(prefs);
+  if (!ids) return rows;
+  return rows.filter((row) => ids.has(row.workspace?.workspaceId));
+}
+
+/** Limit the workspace collection to the active group, preserving its order. */
+export function restrictWorkspaces(workspaces, prefs) {
+  const ids = focusWorkspaceIds(prefs);
+  if (!ids) return workspaces;
+  return {
+    ...workspaces,
+    items: (workspaces?.items ?? []).filter((workspace) => ids.has(workspace.workspaceId)),
+  };
+}
+
+/**
+ * Path-based variant for rows that are not attached to a workspace yet, such as
+ * search hits for sessions outside the current snapshot.
+ */
+export function focusIncludesPath(prefs, workspaces, cwd) {
+  const ids = focusWorkspaceIds(prefs);
+  if (!ids) return true;
+  const workspace = workspaceByPath(workspaces, cwd);
+  return Boolean(workspace) && ids.has(workspace.workspaceId);
+}

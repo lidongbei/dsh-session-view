@@ -7,10 +7,14 @@ import {
   buildCandidates,
   buildRows,
   filterRows,
+  filterRowsByFocus,
+  focusGroupById,
+  focusIncludesPath,
   formatRelativeTime,
   groupByWorkspace,
   moveId,
   pendingLabelKey,
+  restrictWorkspaces,
   sessionTitle,
   splitSections,
   statusLabelKey,
@@ -21,6 +25,8 @@ import {
 import { addToTrash } from './api.js';
 import { getPrefs, setPrefs, subscribePrefs } from './prefs.js';
 import { addTrashIds, getTrashIds, refreshTrash, subscribeTrash } from './trash-store.js';
+import { ConfirmDialog, Dialog, PromptDialog } from './dialog.jsx';
+import { FocusBar, FocusDialog } from './focus-mode.jsx';
 import { STYLES } from './styles.js';
 import {
   ActivityIcon,
@@ -35,6 +41,7 @@ import {
   RestoreIcon,
   SearchIcon,
   SessionViewIcon,
+  TargetIcon,
   TrashIcon,
 } from './icons.jsx';
 
@@ -112,85 +119,6 @@ function usePrefs() {
   return useSyncExternalStore(subscribePrefs, getPrefs, getPrefs);
 }
 
-function PromptDialog({ t, title, label, initial = '', busy, browse, onSubmit, onClose }) {
-  const [value, setValue] = useState(initial);
-  const [picked, setPicked] = useState('');
-  const effective = picked || value;
-  return (
-    <Dialog
-      title={title}
-      onClose={onClose}
-      footer={
-        <>
-          <button type="button" className="dsv-btn" onClick={onClose}>
-            {t('dialog.cancel')}
-          </button>
-          <button
-            type="button"
-            className="dsv-btn"
-            data-tone="primary"
-            disabled={busy || !effective.trim()}
-            onClick={() => onSubmit(effective.trim())}
-          >
-            {t('dialog.save')}
-          </button>
-        </>
-      }
-    >
-      <label className="dsv-sideField">
-        <span>{label}</span>
-        <span className="dsv-sidePathRow">
-          <input
-            autoFocus
-            value={effective}
-            onChange={(event) => {
-              setPicked('');
-              setValue(event.target.value);
-            }}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' && effective.trim()) onSubmit(effective.trim());
-            }}
-          />
-          {browse && (
-            <button
-              type="button"
-              className="dsv-btn"
-              onClick={async () => {
-                const path = await browse();
-                if (path) setPicked(path);
-              }}
-            >
-              {t('dialog.addWorkspace.browse')}
-            </button>
-          )}
-        </span>
-      </label>
-      {browse && <p className="dsv-sideHint">{t('dialog.addWorkspace.hint')}</p>}
-    </Dialog>
-  );
-}
-
-function ConfirmDialog({ t, title, body, confirmKey, tone = 'danger', busy, onConfirm, onClose }) {
-  return (
-    <Dialog
-      title={title}
-      onClose={onClose}
-      footer={
-        <>
-          <button type="button" className="dsv-btn" onClick={onClose}>
-            {t('dialog.cancel')}
-          </button>
-          <button type="button" className="dsv-btn" data-tone={tone} disabled={busy} onClick={onConfirm}>
-            {t(confirmKey)}
-          </button>
-        </>
-      }
-    >
-      <p>{body}</p>
-    </Dialog>
-  );
-}
-
 function formatTime(t, updatedAt, now) {
   const value = formatRelativeTime(updatedAt, now);
   if (value.key === 'time.justNow') return t('time.justNow');
@@ -199,30 +127,6 @@ function formatTime(t, updatedAt, now) {
 
 function Dot({ status }) {
   return <span className="dsv-dot" data-status={status ?? 'idle'} aria-hidden="true" />;
-}
-
-function Dialog({ title, children, onClose, footer }) {
-  useEffect(() => {
-    const onKeyDown = (event) => {
-      if (event.key !== 'Escape') return;
-      event.stopPropagation();
-      onClose();
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [onClose]);
-  return createPortal(
-    <div className="dsv-dialogOverlay" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <div className="dsv-dialog" role="dialog" aria-modal="true" aria-labelledby="dsv-side-dialog-title">
-        <div className="dsv-dialogHead">
-          <h2 id="dsv-side-dialog-title">{title}</h2>
-        </div>
-        <div className="dsv-dialogBody">{children}</div>
-        <div className="dsv-dialogFoot">{footer}</div>
-      </div>
-    </div>,
-    document.body,
-  );
 }
 
 export function SidebarWorkspacePane({
@@ -247,6 +151,7 @@ export function SidebarWorkspacePane({
   openPanel,
 }) {
   const prefs = usePrefs();
+  const focusGroup = focusGroupById(prefs);
   const sessions = useSessions((state) => state);
   const statuses = useSessionStatus((state) => state);
   const workspaces = useWorkspaces((state) => state);
@@ -342,13 +247,17 @@ export function SidebarWorkspacePane({
     // rows are rendered too.
     const rows = annotateRows(built, statuses);
     const visible = prefs.showSubagents ? rows : rows.filter((row) => row.session.origin !== 'subagent');
-    return visible.filter((row) => !trashIds.has(row.session.id));
-  }, [sessions, statuses, workspaces, prefs.showSubagents, trashIds]);
+    return filterRowsByFocus(visible, prefs).filter((row) => !trashIds.has(row.session.id));
+  }, [sessions, statuses, workspaces, prefs.showSubagents, prefs.focusGroups, prefs.focusGroupId, trashIds]);
 
   const pinnedSet = useMemo(() => new Set(workspaces?.pinnedSessionIds ?? []), [workspaces?.pinnedSessionIds]);
   const archivedSet = useMemo(
     () => new Set(workspaces?.archivedSessionIds ?? []),
     [workspaces?.archivedSessionIds],
+  );
+  const focusWorkspaces = useMemo(
+    () => restrictWorkspaces(workspaces, prefs),
+    [workspaces, prefs.focusGroups, prefs.focusGroupId],
   );
 
   const sections = useMemo(() => splitSections(annotated, workspaces?.pinnedSessionIds), [annotated, workspaces?.pinnedSessionIds]);
@@ -405,7 +314,7 @@ export function SidebarWorkspacePane({
   );
 
   const groups = useMemo(() => {
-    const built = groupByWorkspace(restRows, workspaces, prefs.nestWorkspaces);
+    const built = groupByWorkspace(restRows, focusWorkspaces, prefs.nestWorkspaces);
     return built
       .map((group) => {
         const key = group.workspace?.workspaceId ?? '__none';
@@ -416,15 +325,15 @@ export function SidebarWorkspacePane({
       // Empty workspaces stay visible: their header is still a useful place to
       // start a session from the workspace context menu.
       ;
-  }, [restRows, workspaces, prefs.nestWorkspaces, prefs.sort, prefs.manualOrder]);
+  }, [restRows, focusWorkspaces, prefs.nestWorkspaces, prefs.sort, prefs.manualOrder]);
 
   const archived = useMemo(() => {
     if (prefs.archivedFilter === 'hide') return [];
     const rows = archivedRows(sessions, workspaces?.archivedSessionIds, workspaces);
     const visible = prefs.showSubagents ? rows : rows.filter((row) => row.session.origin !== 'subagent');
-    const kept = visible.filter((row) => !trashIds.has(row.session.id));
+    const kept = filterRowsByFocus(visible.filter((row) => !trashIds.has(row.session.id)), prefs);
     return query.trim() ? filterRows(kept, { query: query.trim() }) : kept;
-  }, [sessions, workspaces?.archivedSessionIds, prefs.archivedFilter, prefs.showSubagents, query, trashIds]);
+  }, [sessions, workspaces?.archivedSessionIds, prefs.archivedFilter, prefs.showSubagents, prefs.focusGroups, prefs.focusGroupId, query, trashIds]);
 
   const localMatches = useMemo(() => (query.trim() ? filterRows(annotated, { query: query.trim() }) : []), [annotated, query]);
   const localIds = useMemo(() => new Set(localMatches.map((row) => row.session.id)), [localMatches]);
@@ -433,9 +342,10 @@ export function SidebarWorkspacePane({
       ? search.items.filter((item) => !localIds.has(item.sessionId)
         && !archivedSet.has(item.sessionId)
         && !trashIds.has(item.sessionId)
-        && (prefs.showSubagents || sessions?.byId?.[item.sessionId]?.origin !== 'subagent'))
+        && (prefs.showSubagents || sessions?.byId?.[item.sessionId]?.origin !== 'subagent')
+        && focusIncludesPath(prefs, workspaces, sessions?.byId?.[item.sessionId]?.cwd))
       : []),
-    [search.state, search.items, localIds, archivedSet, trashIds, prefs.showSubagents, sessions?.byId],
+    [search.state, search.items, localIds, archivedSet, trashIds, prefs.showSubagents, prefs.focusGroups, prefs.focusGroupId, sessions?.byId, workspaces],
   );
   const localDisplay = localMatches.slice(0, 20);
   const contentDisplay = contentHits.slice(0, Math.max(0, 20 - localDisplay.length));
@@ -1007,6 +917,16 @@ export function SidebarWorkspacePane({
               <button
                 type="button"
                 className="dsv-sideIconBtn"
+                aria-pressed={Boolean(focusGroup)}
+                aria-label={t('focus.title')}
+                title={t('focus.title')}
+                onClick={() => setDialog({ kind: 'focus' })}
+              >
+                <TargetIcon size={14} />
+              </button>
+              <button
+                type="button"
+                className="dsv-sideIconBtn"
                 aria-label={t('side.manage')}
                 title={t('side.manage')}
                 onClick={() => openPanel?.()}
@@ -1017,6 +937,15 @@ export function SidebarWorkspacePane({
           </div>
         )}
       </header>
+
+      {focusGroup && (
+        <FocusBar
+          t={t}
+          prefs={prefs}
+          onManage={() => setDialog({ kind: 'focus' })}
+          onExit={() => setPrefs({ focusGroupId: '' })}
+        />
+      )}
 
       {flash && <div className="dsv-sideFlash" role="status">{flash}</div>}
 
@@ -1144,8 +1073,24 @@ export function SidebarWorkspacePane({
             {activeRowsView.length === 0 && pinnedRows.length === 0 && archived.length === 0 &&
               prefs.showWorkspaces && !groups.some((group) => group.rows.length > 0) && (
               <div className="dsv-sideEmpty">
-                <span>{t('empty.none')}</span>
-                <span className="dsv-sideHint">{t('empty.noneHint')}</span>
+                {focusGroup ? (
+                  <>
+                    <span>{t('focus.emptySide')}</span>
+                    <span className="dsv-sideHint">{t('focus.emptySideHint')}</span>
+                    <button
+                      type="button"
+                      className="dsv-sideTextBtn"
+                      onClick={() => setDialog({ kind: 'focus' })}
+                    >
+                      {t('focus.manage')}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span>{t('empty.none')}</span>
+                    <span className="dsv-sideHint">{t('empty.noneHint')}</span>
+                  </>
+                )}
               </div>
             )}
           </>
@@ -1219,6 +1164,16 @@ export function SidebarWorkspacePane({
             setDialog(null);
             run(() => deleteWorkspace(workspace.workspaceId), 'toast.workspaceDeleted');
           }}
+        />
+      )}
+
+      {dialog?.kind === 'focus' && (
+        <FocusDialog
+          t={t}
+          prefs={prefs}
+          workspaces={workspaces}
+          onChange={(patch) => setPrefs(patch)}
+          onClose={() => setDialog(null)}
         />
       )}
 

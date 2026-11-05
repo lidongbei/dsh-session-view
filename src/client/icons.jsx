@@ -164,3 +164,13 @@ export function FolderIcon({ size = 14 }) {
     </svg>
   );
 }
+
+export function TargetIcon({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false">
+      <circle cx="8" cy="8" r="5.4" stroke="currentColor" strokeWidth="1.2" />
+      <circle cx="8" cy="8" r="2.2" stroke="currentColor" strokeWidth="1.2" />
+      <circle cx="8" cy="8" r="0.7" fill="currentColor" />
+    </svg>
+  );
+}

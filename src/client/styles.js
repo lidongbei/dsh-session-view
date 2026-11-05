@@ -1203,6 +1203,101 @@ body.dsv-dragging * { -webkit-user-select: none !important; user-select: none !i
 .dsv-settingsFooterHint { font-size: 11px; color: var(--dsw-alias-label-tertiary); }
 .dsv-settingsShortcuts { flex-basis: 100%; margin-top: 2px; font-size: 11px; line-height: 1.6; color: var(--dsw-alias-label-tertiary); }
 .dsv-hint { margin: 12px 0; font-size: 11px; color: var(--dsw-alias-label-tertiary); }
+.dsv-focusBar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  margin: 0 2px 4px;
+  padding: 4px 6px;
+  border: 1px solid var(--dsw-alias-border-l3);
+  border-radius: 8px;
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-secondary);
+  font-size: 11px;
+  line-height: 16px;
+}
+.dsv-focusBarIcon { display: inline-flex; flex: none; color: var(--dsw-alias-state-business-primary); }
+.dsv-focusBarName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--dsw-alias-label-primary);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dsv-focusBarCount { flex: none; font-size: 10px; color: var(--dsw-alias-label-tertiary); font-variant-numeric: tabular-nums; }
+.dsv-focusBarBtn {
+  flex: none;
+  height: 20px;
+  padding: 0 5px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+}
+.dsv-focusBarBtn:hover { background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-primary); }
+.dsv-focusActive {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--dsw-alias-border-l3);
+  border-radius: 8px;
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+}
+.dsv-focusActiveText { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dsv-focusList { display: flex; flex-direction: column; gap: 6px; max-height: 260px; overflow: auto; }
+.dsv-focusGroup { padding: 6px 8px; border: 1px solid var(--dsw-alias-border-l3); border-radius: 8px; }
+.dsv-focusGroup[data-active="true"] {
+  border-color: var(--dsw-alias-state-business-primary);
+  background: color-mix(in srgb, var(--dsw-alias-state-business-primary) 7%, transparent);
+}
+.dsv-focusGroupHead { display: flex; align-items: center; gap: 8px; }
+.dsv-focusName {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  height: 24px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.dsv-focusName:hover { background: var(--dsw-alias-interactive-bg-hover); }
+.dsv-focusName span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dsv-focusMeta { flex: none; font-size: 10px; color: var(--dsw-alias-label-tertiary); font-variant-numeric: tabular-nums; }
+.dsv-focusActions { display: flex; flex: none; gap: 2px; margin-left: auto; }
+.dsv-focusRename { display: inline-flex; flex: 1; align-items: center; gap: 6px; min-width: 0; }
+.dsv-focusRename .dsv-input { height: 28px; }
+.dsv-focusMembers {
+  display: flex;
+  flex-direction: column;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--dsw-alias-border-l3);
+}
+.dsv-focusDanger { color: var(--dsw-alias-state-error-primary); }
+.dsv-focusCreate { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--dsw-alias-border-l3); }
+.dsv-focusCreateHead { margin-bottom: 6px; font-size: 12px; font-weight: 600; color: var(--dsw-alias-label-primary); }
+.dsv-focusCreate .dsv-input { width: 100%; height: 30px; margin-bottom: 6px; }
+.dsv-focusCreate .dsv-focusMembers { max-height: 160px; overflow: auto; margin-bottom: 8px; }
+.dsv-focusEntry { gap: 5px; }
+.dsv-focusEntryDot { width: 6px; height: 6px; border-radius: 999px; background: var(--dsw-alias-state-business-primary); }
 `;
 
 export const BOARD_ONLY_STYLES = '';
