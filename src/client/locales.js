@@ -234,6 +234,8 @@ export const zh = {
   'focus.done': '完成',
   'focus.switch': '切换',
   'focus.selectedCount': '已选 {n} 个工作区',
+  'focus.groups': '专注组',
+  'focus.emptyManage': '还没有专注组',
 };
 
 export const en = {
@@ -470,4 +472,6 @@ export const en = {
   'focus.done': 'Done',
   'focus.switch': 'Switch',
   'focus.selectedCount': '{n} selected',
+  'focus.groups': 'Focus groups',
+  'focus.emptyManage': 'No focus groups yet',
 };

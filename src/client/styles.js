@@ -1381,6 +1381,31 @@ body.dsv-dragging * { -webkit-user-select: none !important; user-select: none !i
 .dsv-focusCreateFoot .dsv-sideHint { margin: 0; }
 .dsv-focusEntry { gap: 5px; }
 .dsv-focusEntryDot { width: 6px; height: 6px; border-radius: 999px; background: var(--dsw-alias-state-business-primary); }
+.dsv-sideFocus .dsv-focusRow { display: flex; align-items: center; gap: 4px; }
+.dsv-focusRowMain {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.dsv-focusRowMain:hover { background: var(--dsw-alias-interactive-bg-hover); color: var(--dsw-alias-label-primary); }
+.dsv-focusRow[data-active="true"] .dsv-focusRowMain { color: var(--dsw-alias-label-primary); }
+.dsv-focusDot { flex: none; width: 6px; height: 6px; border-radius: 999px; background: var(--dsw-alias-border-l4); }
+.dsv-focusRow[data-active="true"] .dsv-focusDot { background: var(--dsw-alias-state-business-primary); }
+.dsv-focusRowName { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dsv-focusRowMeta { flex: none; font-size: 10px; color: var(--dsw-alias-label-tertiary); font-variant-numeric: tabular-nums; }
+.dsv-focusBlank { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 2px 4px 6px; }
 `;
 
 export const BOARD_ONLY_STYLES = '';

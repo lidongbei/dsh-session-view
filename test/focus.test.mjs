@@ -242,6 +242,12 @@ test('focus mode filters the sidebar by the selected workspaces', async () => {
 
     assert.ok(empty.includes('专注'), 'an empty focused group must explain the empty state');
     assert.ok(!empty.includes('App task one'), 'empty focused group must not list unrelated sessions');
+
+    assert.ok(off.includes('class="dsv-sideGroup dsv-sideFocus"'), 'focus section must sit in the sidebar list');
+    assert.ok(off.includes('还没有专注组') && off.includes('新建专注组'), 'empty focus section must offer creation');
+    assert.ok(on.includes('<div class="dsv-focusRow" data-active="true">'), 'active focus row must be marked');
+    assert.match(on, /class="dsv-focusRowName">前端</, 'focus section must list the group name');
+    assert.ok(!on.includes('dsv-focusRowEdit'), 'focus rows must not render a per-row manage button');
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

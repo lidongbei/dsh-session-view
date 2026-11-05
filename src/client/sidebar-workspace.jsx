@@ -26,7 +26,7 @@ import { addToTrash } from './api.js';
 import { getPrefs, setPrefs, subscribePrefs } from './prefs.js';
 import { addTrashIds, getTrashIds, refreshTrash, subscribeTrash } from './trash-store.js';
 import { ConfirmDialog, Dialog, PromptDialog } from './dialog.jsx';
-import { FocusBar, FocusDialog } from './focus-mode.jsx';
+import { FocusBar, FocusDialog, groupLabel, memberSummary } from './focus-mode.jsx';
 import { STYLES } from './styles.js';
 import {
   ActivityIcon,
@@ -562,11 +562,33 @@ export function SidebarWorkspacePane({
     </>
   );
 
+  const contextFocusItems = (focus) => {
+    const active = focus.id === prefs.focusGroupId;
+    const label = active ? t('focus.exit') : prefs.focusGroupId ? t('focus.switch') : t('focus.enter');
+    return (
+      <>
+        <button
+          type="button"
+          role="menuitem"
+          onClick={() => { closeMenus(); setPrefs({ focusGroupId: active ? '' : focus.id }); }}
+        >
+          {label}
+        </button>
+        <button type="button" role="menuitem" onClick={() => { closeMenus(); setDialog({ kind: 'focus' }); }}>
+          {t('focus.manage')}
+        </button>
+      </>
+    );
+  };
+
   const contextRow = contextMenu?.kind === 'session'
     ? (contextMenu.archived ? archived : annotated).find((row) => row.session.id === contextMenu.id)
     : null;
   const contextWorkspace = contextMenu?.kind === 'workspace'
     ? groups.map((group) => group.workspace).find((workspace) => workspace?.workspaceId === contextMenu.id)
+    : null;
+  const contextFocus = contextMenu?.kind === 'focus'
+    ? prefs.focusGroups.find((group) => group.id === contextMenu.id) ?? null
     : null;
 
   const sectionHead = ({ key, label, count, icon = null, collapsed, extra = null }) => (
@@ -796,6 +818,7 @@ export function SidebarWorkspacePane({
   const recentCollapsed = collapsedGroups.has('__recent');
   const pinnedCollapsed = collapsedGroups.has('__pinned');
   const workspacesCollapsed = collapsedGroups.has('__workspaces');
+  const focusCollapsed = collapsedGroups.has('__focus');
 
   useEffect(() => {
     if (typeof document === 'undefined') return undefined;
@@ -1039,6 +1062,68 @@ export function SidebarWorkspacePane({
               </section>
             )}
 
+            {prefs.archivedFilter !== 'only' && !query.trim() && (
+              <section className="dsv-sideGroup dsv-sideFocus" aria-label={t('focus.groups')}>
+                {sectionHead({
+                  key: '__focus',
+                  label: t('focus.groups'),
+                  count: prefs.focusGroups.length,
+                  icon: <TargetIcon size={12} />,
+                  collapsed: focusCollapsed,
+                  extra: (
+                    <button type="button" className="dsv-sideTextBtn" onClick={() => setDialog({ kind: 'focus' })}>
+                      {t('focus.manage')}
+                    </button>
+                  ),
+                })}
+                {!focusCollapsed && (
+                  <>
+                    {prefs.focusGroups.map((entry) => {
+                      const active = entry.id === prefs.focusGroupId;
+                      const summary = memberSummary(entry, workspaces);
+                      return (
+                        <div
+                          key={entry.id}
+                          className="dsv-focusRow"
+                          data-active={active}
+                          onContextMenu={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            closeMenus();
+                            setContextMenu({ kind: 'focus', id: entry.id, x: event.clientX, y: event.clientY });
+                          }}
+                        >
+                          <button
+                            type="button"
+                            className="dsv-focusRowMain"
+                            aria-pressed={active}
+                            title={active ? t('focus.exit') : t('focus.enter')}
+                            onClick={() => setPrefs({ focusGroupId: active ? '' : entry.id })}
+                          >
+                            <span className="dsv-focusDot" aria-hidden="true" />
+                            <span className="dsv-focusRowName">{groupLabel(t, prefs, entry)}</span>
+                            <span className="dsv-focusRowMeta">
+                              {summary.stale > 0
+                                ? t('focus.staleCount', { n: summary.stale })
+                                : t('focus.memberCount', { n: entry.workspaceIds.length })}
+                            </span>
+                          </button>
+                        </div>
+                      );
+                    })}
+                    {prefs.focusGroups.length === 0 && (
+                      <div className="dsv-focusBlank">
+                        <span className="dsv-sideHint">{t('focus.emptyManage')}</span>
+                        <button type="button" className="dsv-sideTextBtn" onClick={() => setDialog({ kind: 'focus' })}>
+                          {t('focus.new')}
+                        </button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </section>
+            )}
+
             {prefs.archivedFilter !== 'only' && prefs.showWorkspaces && groups.length > 0 && (
               <section className="dsv-sideGroup dsv-sideWorkspaces" aria-label={t('side.workspaces')}>
                 {sectionHead({
@@ -1187,7 +1272,7 @@ export function SidebarWorkspacePane({
           }}
           onPointerDown={(event) => event.stopPropagation()}
         >
-          {contextRow ? contextSessionItems(contextRow, contextMenu.archived) : contextWorkspace ? contextWorkspaceItems(contextWorkspace) : null}
+          {contextRow ? contextSessionItems(contextRow, contextMenu.archived) : contextWorkspace ? contextWorkspaceItems(contextWorkspace) : contextFocus ? contextFocusItems(contextFocus) : null}
         </div>,
         globalThis.document.body,
       )}
