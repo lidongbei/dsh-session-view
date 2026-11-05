@@ -77,6 +77,8 @@ setPrefs({ showRecent: false, showPinned: false, showActive: false });
 globalThis.__DSV_PANE_HTML_HIDDEN = renderToStaticMarkup(React.createElement(SidebarWorkspacePane, props));
 setPrefs({ showRecent: true, showPinned: true, showActive: true, collapsedGroups: ['__active', '__recent', '__workspaces'] });
 globalThis.__DSV_PANE_HTML_COLLAPSED = renderToStaticMarkup(React.createElement(SidebarWorkspacePane, props));
+setPrefs({ compact: true, showTimes: true, collapsedGroups: [] });
+globalThis.__DSV_PANE_HTML_COMPACT = renderToStaticMarkup(React.createElement(SidebarWorkspacePane, props));
 resetPrefs();
 `;
 
@@ -149,6 +151,12 @@ test('SidebarWorkspacePane renders pinned and a limited active group', async () 
     const activeCollapsed = collapsed.match(/<section class="dsv-sideGroup" aria-label="活跃会话">([\s\S]*?)<\/section>/)?.[1] ?? '';
     assert.ok(!activeCollapsed.includes('dsv-sideRow'), 'collapsed active section must not render rows');
     assert.ok(!collapsed.includes('aria-label="App"'), 'collapsed workspace section must not render groups');
+
+    const compact = globalThis.__DSV_PANE_HTML_COMPACT;
+    delete globalThis.__DSV_PANE_HTML_COMPACT;
+    assert.match(compact, /data-compact="true"/, 'compact mode must be applied');
+    assert.ok(compact.includes('dsv-sideTime'), 'compact rows must keep the session time');
+    assert.ok(!compact.includes('.dsv-side[data-compact="true"] .dsv-sideTime { display: none; }'), 'compact mode must not hide the session time');
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
