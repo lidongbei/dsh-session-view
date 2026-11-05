@@ -18,8 +18,9 @@ import {
   watermarkLimit,
   workspaceLabel,
 } from './logic.js';
-import { addToTrash, fetchTrash } from './api.js';
+import { addToTrash } from './api.js';
 import { getPrefs, setPrefs, subscribePrefs } from './prefs.js';
+import { addTrashIds, getTrashIds, refreshTrash, subscribeTrash } from './trash-store.js';
 import { STYLES } from './styles.js';
 import {
   ActivityIcon,
@@ -264,7 +265,7 @@ export function SidebarWorkspacePane({
   const [expandedGroups, setExpandedGroups] = useState({});
   const [contextMenu, setContextMenu] = useState(null);
   const [search, setSearch] = useState({ state: 'idle', items: [], error: '' });
-  const [trashIds, setTrashIds] = useState(() => new Set());
+  const trashIds = useSyncExternalStore(subscribeTrash, getTrashIds, getTrashIds);
   const dragRef = useRef(null);
   const workspaceDragRef = useRef(null);
   const searchRef = useRef(null);
@@ -282,21 +283,10 @@ export function SidebarWorkspacePane({
   }, []);
 
   useEffect(() => {
-    let active = true;
-    const load = () => {
-      fetchTrash()
-        .then((data) => {
-          if (!active) return;
-          setTrashIds(new Set((data?.items ?? []).map((item) => item.sessionId)));
-        })
-        .catch(() => {});
-    };
+    const load = () => refreshTrash().catch(() => {});
     load();
     window.addEventListener('focus', load);
-    return () => {
-      active = false;
-      window.removeEventListener('focus', load);
-    };
+    return () => window.removeEventListener('focus', load);
   }, []);
 
   useEffect(() => {
@@ -503,7 +493,7 @@ export function SidebarWorkspacePane({
       ]);
       const failure = (result?.failed ?? []).find((item) => item.sessionId === row.session.id);
       if (!failure) {
-        setTrashIds((prev) => new Set(prev).add(row.session.id));
+        addTrashIds([row.session.id]);
         // Archiving is only the first half: a trashed session must also leave
         // the archived list, otherwise it reappears after the trash filter.
         await unarchiveSession(row.session.id).catch(() => {});
@@ -1297,7 +1287,7 @@ export function SidebarWorkspacePane({
                 await addToTrash([
                   { sessionId: row.session.id, title: row.title, cwd: row.session.cwd ?? '', deletedAt: Date.now() },
                 ]);
-                setTrashIds((prev) => new Set(prev).add(row.session.id));
+                addTrashIds([row.session.id]);
                 await unarchiveSession(row.session.id).catch(() => {});
               }
             }, trash ? 'toast.trashed' : 'toast.stoppedArchived', trash ? { n: 1 } : undefined);

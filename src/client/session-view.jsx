@@ -18,6 +18,7 @@ import {
 } from './logic.js';
 import { addToTrash, fetchTrash, purgeTrash, restoreTrash } from './api.js';
 import { getPrefs, subscribePrefs } from './prefs.js';
+import { addTrashIds, removeTrashIds, setTrashItems } from './trash-store.js';
 import { STYLES } from './styles.js';
 import {
   ArchiveIcon,
@@ -99,7 +100,9 @@ export function SessionView({
     setTrash((prev) => ({ ...prev, state: 'loading', error: null }));
     try {
       const data = await fetchTrash();
-      setTrash({ state: 'ready', items: Array.isArray(data.items) ? data.items : [], error: null });
+      const items = Array.isArray(data.items) ? data.items : [];
+      setTrash({ state: 'ready', items, error: null });
+      setTrashItems(items);
     } catch (error) {
       setTrash({ state: 'error', items: [], error: errorText(error) });
     }
@@ -290,6 +293,7 @@ export function SessionView({
         for (const failed of result.failed ?? []) added.delete(failed.sessionId);
         await Promise.allSettled([...added].map((id) => unarchiveSession(id)));
         const ok = result.added ?? added.size;
+        addTrashIds([...added]);
         notify(ok === 0 ? '' : t('toast.trashed', { n: ok }), failures, ok);
         reportStale(stale);
         await loadTrash();
@@ -328,6 +332,8 @@ export function SessionView({
       const failures = Array.isArray(result.failed) ? result.failed : [];
       const ok = result.restored ?? ids.length - failures.length;
       const stale = markStale(failures.filter((item) => isStaleSessionError(item.error)).map((item) => item.sessionId));
+      const failedIds = new Set(failures.map((item) => item.sessionId));
+      removeTrashIds(ids.filter((id) => !failedIds.has(id)));
       notify(ok === 0 ? '' : t('toast.restored', { n: ok }), failures, ok);
       reportStale(stale);
       await Promise.allSettled(ids.map((id) => unarchiveSession(id)));
@@ -343,6 +349,7 @@ export function SessionView({
       const result = await purgeTrash(ids);
       const failures = Array.isArray(result.failed) ? result.failed : [];
       const ok = result.purged?.length ?? 0;
+      removeTrashIds(Array.isArray(result.purged) ? result.purged : ids);
       notify(ok === 0 ? '' : t('toast.purged', { n: ok }), failures, ok);
       await loadTrash();
     } catch (error) {
