@@ -373,8 +373,9 @@ export function trashRows(items, byId = {}) {
 }
 
 /** Archived session ids that still exist in the snapshot, newest first. */
-export function archivedRows(sessions, archivedIds) {
+export function archivedRows(sessions, archivedIds, workspaces) {
   const byId = sessions?.byId ?? {};
+  const index = workspaceIndex(workspaces);
   const rows = [];
   for (const id of archivedIds ?? []) {
     const summary = byId[id];
@@ -385,6 +386,7 @@ export function archivedRows(sessions, archivedIds) {
       depth: 0,
       orphan: false,
       status: 'idle',
+      workspace: resolveWorkspace(summary, index, byId) ?? workspaceByPath(workspaces, summary.cwd),
       archived: true,
     });
   }

@@ -69,16 +69,24 @@ test('trashRows prefers the live summary and orders by deletion time', () => {
   assert.equal(rows[0].trashed, true);
 });
 
-test('archivedRows keeps existing sessions and sorts by recency', () => {
+test('archivedRows keeps existing sessions, sorts by recency and resolves workspaces', () => {
   const sessions = {
     byId: {
-      a: summary('a', { updatedAt: 10 }),
-      b: summary('b', { updatedAt: 40 }),
+      a: summary('a', { updatedAt: 10, cwd: 'D:/work/alpha' }),
+      b: summary('b', { updatedAt: 40, cwd: 'D:/work/beta' }),
     },
   };
-  const rows = archivedRows(sessions, ['a', 'missing', 'b']);
+  const workspaces = {
+    items: [
+      { workspaceId: 'w1', path: 'D:/work/alpha', title: 'Alpha', sessionIds: [] },
+      { workspaceId: 'w2', path: 'D:/work/beta', title: 'Beta', sessionIds: [] },
+    ],
+  };
+  const rows = archivedRows(sessions, ['a', 'missing', 'b'], workspaces);
   assert.deepEqual(rows.map((item) => item.session.id), ['b', 'a']);
   assert.equal(rows[0].archived, true);
+  assert.equal(rows[0].workspace?.workspaceId, 'w2');
+  assert.equal(rows[1].workspace?.workspaceId, 'w1');
 });
 
 test('projectKeyFor mirrors the JSONL backend directory naming', () => {

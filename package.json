@@ -1,6 +1,6 @@
 {
   "name": "dsh-session-view",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "private": true,
   "description": "Session-first workspace view for the DSH sidebar",
   "type": "module",

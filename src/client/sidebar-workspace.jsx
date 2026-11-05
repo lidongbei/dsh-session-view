@@ -431,7 +431,7 @@ export function SidebarWorkspacePane({
 
   const archived = useMemo(() => {
     if (prefs.archivedFilter === 'hide') return [];
-    const rows = archivedRows(sessions, workspaces?.archivedSessionIds);
+    const rows = archivedRows(sessions, workspaces?.archivedSessionIds, workspaces);
     const visible = prefs.showSubagents ? rows : rows.filter((row) => row.session.origin !== 'subagent');
     const kept = visible.filter((row) => !trashIds.has(row.session.id));
     return query.trim() ? filterRows(kept, { query: query.trim() }) : kept;
@@ -442,9 +442,11 @@ export function SidebarWorkspacePane({
   const contentHits = useMemo(
     () => (search.state === 'ready'
       ? search.items.filter((item) => !localIds.has(item.sessionId)
+        && !archivedSet.has(item.sessionId)
+        && !trashIds.has(item.sessionId)
         && (prefs.showSubagents || sessions?.byId?.[item.sessionId]?.origin !== 'subagent'))
       : []),
-    [search.state, search.items, localIds, prefs.showSubagents, sessions?.byId],
+    [search.state, search.items, localIds, archivedSet, trashIds, prefs.showSubagents, sessions?.byId],
   );
   const localDisplay = localMatches.slice(0, 20);
   const contentDisplay = contentHits.slice(0, Math.max(0, 20 - localDisplay.length));

@@ -142,7 +142,7 @@ export function SessionView({
     [activeRows, workspaces?.pinnedSessionIds],
   );
   const archived = useMemo(() => {
-    const all = archivedRows(sessions, workspaces?.archivedSessionIds)
+    const all = archivedRows(sessions, workspaces?.archivedSessionIds, workspaces)
       .filter((row) => !trashedIds.has(row.session.id));
     const rows = prefs.showSubagents ? all : all.filter((row) => row.session.origin !== 'subagent');
     return rows.filter((row) => matchesQuery(row, query));
@@ -219,12 +219,19 @@ export function SessionView({
   };
 
   const archiveMany = async (ids) => {
-    const results = await Promise.allSettled(ids.map((id) => archiveSession(id)));
-    const failures = results
-      .map((result, index) => (result.status === 'rejected' ? { id: ids[index], error: result.reason } : null))
-      .filter(Boolean);
-    const ok = ids.length - failures.length;
-    notify(failures.length === ids.length ? '' : t('toast.archived', { n: ok }), failures, ok);
+    const failures = [];
+    let ok = 0;
+    // Serialize Host mutations: concurrent archive calls on the same workspace
+    // index race and one of them can fail after the others already landed.
+    for (const id of ids) {
+      try {
+        await archiveSession(id);
+        ok += 1;
+      } catch (error) {
+        failures.push({ id, error });
+      }
+    }
+    notify(ok === 0 ? '' : t('toast.archived', { n: ok }), failures, ok);
     setSelected([]);
   };
 
@@ -264,9 +271,16 @@ export function SessionView({
   };
 
   const restoreMany = async (ids) => {
-    const results = await Promise.allSettled(ids.map((id) => unarchiveSession(id)));
-    const failures = results.filter((result) => result.status === 'rejected');
-    const ok = ids.length - failures.length;
+    const failures = [];
+    let ok = 0;
+    for (const id of ids) {
+      try {
+        await unarchiveSession(id);
+        ok += 1;
+      } catch (error) {
+        failures.push({ error });
+      }
+    }
     notify(ok === 0 ? '' : t('toast.restored', { n: ok }), failures, ok);
     if (tab === 'trash') await loadTrash();
     setSelected([]);
