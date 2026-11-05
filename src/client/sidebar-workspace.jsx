@@ -546,73 +546,6 @@ export function SidebarWorkspacePane({
     event.dataTransfer.setData('text/plain', row.session.id);
   };
 
-  const rowActions = (row, archivedRow = false) => {
-    const isPinned = pinnedSet.has(row.session.id);
-    const menuOpen = menu?.kind === 'session' && menu.id === row.session.id;
-    return (
-      <div className="dsv-sideRowActions">
-        <div className="dsv-menuWrap">
-          <button
-            type="button"
-            className="dsv-sideIconBtn"
-            aria-haspopup="menu"
-            aria-expanded={menuOpen}
-            aria-label={t('action.menu')}
-            title={t('action.menu')}
-            onClick={(event) => {
-              event.stopPropagation();
-              setMenu(menuOpen ? null : { kind: 'session', id: row.session.id });
-            }}
-          >
-            <MoreIcon size={13} />
-          </button>
-          {menuOpen && (
-            <div className="dsv-menu" role="menu" onPointerDown={(event) => event.stopPropagation()}>
-              <button type="button" role="menuitem" onClick={() => openSession(row.session.id)}>
-                {t('action.open')}
-              </button>
-              {!archivedRow && (
-                <button type="button" role="menuitem" onClick={() => togglePin(row)}>
-                  {t(isPinned ? 'action.unpin' : 'action.pin')}
-                </button>
-              )}
-              <button type="button" role="menuitem" onClick={() => { setMenu(null); setDialog({ kind: 'renameSession', row }); }}>
-                {t('action.rename')}
-              </button>
-              <button type="button" role="menuitem" onClick={() => { setMenu(null); run(() => forkSession(row.session.id), 'toast.forked'); }}>
-                {t('action.fork')}
-              </button>
-              <button type="button" role="menuitem" onClick={() => copyId(row)}>
-                {t('action.copyId')}
-              </button>
-              {archivedRow ? (
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={() => {
-                    setMenu(null);
-                    run(() => unarchiveSession(row.session.id), 'toast.restored', { n: 1 });
-                  }}
-                >
-                  {t('action.restore')}
-                </button>
-              ) : (
-                <>
-                  <button type="button" role="menuitem" onClick={() => archive(row)}>
-                    {t('action.archive')}
-                  </button>
-                  <button type="button" role="menuitem" className="dsv-danger" onClick={() => moveToTrash(row)}>
-                    {t('action.trash')}
-                  </button>
-                </>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
-
   const closeMenus = () => {
     setMenu(null);
     setContextMenu(null);
@@ -751,7 +684,6 @@ export function SidebarWorkspacePane({
             )
           )}
         </button>
-        {rowActions(row, archivedRow)}
       </div>
     );
   };
@@ -1047,15 +979,6 @@ export function SidebarWorkspacePane({
                 onClick={() => openPanel?.()}
               >
                 <SessionViewIcon size={14} />
-              </button>
-              <button
-                type="button"
-                className="dsv-sideIconBtn"
-                aria-label={t('side.switch.native')}
-                title={t('side.switch.native')}
-                onClick={() => setPrefs({ mode: 'native' })}
-              >
-                <LayoutIcon size={14} />
               </button>
             </div>
           </div>

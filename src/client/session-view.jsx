@@ -496,22 +496,24 @@ export function SessionView({
   };
 
   const sectionList =
-    tab !== 'active'
-      ? []
-      : status === ALL
-        ? [
-            ['pinned', 'section.pinned', sections.pinned],
-            ['running', 'section.running', sections.running],
-            ['pending', 'section.pending', sections.pending],
-            ['done', 'section.done', sections.done],
-            ['idle', 'section.idle', sections.idle],
-          ]
-        : [['all', 'section.all', activeRows]];
+    tab === 'archived'
+      ? [['archived', 'tab.archived', archived]]
+      : tab === 'trash'
+        ? [['trash', 'tab.trash', trashed]]
+        : status === ALL
+          ? [
+              ['pinned', 'section.pinned', sections.pinned],
+              ['running', 'section.running', sections.running],
+              ['pending', 'section.pending', sections.pending],
+              ['done', 'section.done', sections.done],
+              ['idle', 'section.idle', sections.idle],
+            ]
+          : [['all', 'section.all', activeRows]];
 
   const tabCounts = {
     active: annotated.length,
     archived: archived.length,
-    trash: trash.items.length,
+    trash: trashed.length,
   };
 
   const emptyNode = (() => {
