@@ -698,6 +698,7 @@ export const STYLES = `
   margin: 0;
 }
 .dsv-boardHost[hidden] { display: none; }
+.dsv-boardHost--inline .dsv-side { margin-right: 0; }
 .dsv-workarea {
   display: flex;
   flex: 1;

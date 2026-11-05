@@ -2,18 +2,19 @@
 
 DSH Web 的**会话视图**插件：默认接管左侧工作区块，以会话为主行展示置顶 / 活跃 / 最近 / 已完成未读会话，可一键切回原生工作区；主窗口提供完整的会话管理页，偏好设置并入系统「设置」。
 
-版本 0.5.4。
+版本 0.5.5。
 
 ## 功能
 
 ### 左侧会话视图（接管模式）
 
-- 不再占用顶部面板菜单：由 footer action 挂载，通过 React Portal 把会话视图插到侧栏 panel nav 之后、原生 `.regionArea` 之前；默认隐藏原生工作区区域，但**不卸载**它，切回时状态完整保留。
+- 不再占用顶部面板菜单：由 footer action 挂载，通过 React Portal 把会话视图插到侧栏 panel nav 之后；默认隐藏原生工作区列表，但**不卸载**它，切回时状态完整保留。
+- **兼容 dsh-ssh**：原生 `.regionArea` 顶部的「远端」SSH 面板保持显示。会话模式下只隐藏原生工作区列表，SSH 面板固定在会话视图上方；切回原生后仍位于工作区列表上方。
 - 顶部工具栏：搜索、新建会话、添加工作区、**会话管理**、切回原生工作区；设置入口已移到系统「设置 → 会话视图」。
 - **活跃会话**分组：显示运行中 / 待处理 / 有运行中子会话的顶层会话，按 `settings.activeLimit` 限制条数，支持「更多 / 收起」，分组可折叠。
 - **置顶**分组：置顶会话排在最前，置顶/取消置顶通过行菜单或右键菜单完成，行尾不再显示图钉图标。
 - **最近会话**分组：按更新时间显示最近的会话（包含活跃、置顶会话），按 `settings.recentLimit` 限制条数，支持「更多 / 收起」，分组可折叠。
-- **新建会话草稿**：点击「新会话」后立即关闭看板；会话创建完成前不会出现在列表，创建完成后以「新会话」为标题同时出现在最近、活跃和所属工作区分组中。
+- **新建会话草稿**：点击「新会话」后立即关闭看板；只要草稿仍由主视图保留，就以「新会话」为标题同时出现在最近、活跃和所属工作区分组中，创建完成后转为正式标题。
 - 活跃 / 置顶 / 最近三个分组都只是快捷入口；同一个会话**仍然保留在所属工作区分组中**。
 - 四个分组可分别在系统设置里关闭：`显示活跃会话分组` / `显示置顶会话分组` / `显示最近会话分组` / `显示工作区会话分组`。
 - **工作区分组**：放在「工作区会话」分区下，按工作区路径树形嵌套（取最长前缀父目录），每个工作区按 `settings.workspaceLimit` 限制条数；空工作区始终显示其标题，不再渲染「暂无会话」占位行；「工作区会话」分区可折叠。
@@ -181,7 +182,7 @@ npm run check   # build + test
 - `src/client/prefs.js`：localStorage 偏好存储与订阅，纯数据无 React。
 - `src/client/logic.js`：纯函数（状态归并、父子分组、分区、活跃分组、工作区树、过滤、计数、相对时间、路径推导），无 React 依赖。
 - `src/client/sidebar-workspace.jsx`：接管侧栏的会话视图（分组、水位、搜索、拖拽、右键菜单、快捷键、对话框、会话管理入口）。
-- `src/client/sidebar-board.jsx`：Portal 定位 `nav.panelList`，隐藏/恢复原生 `.regionArea`，只在会话模式渲染接管面板；`stopPropagation` 防止 React Portal 事件冒泡到侧栏 footer 的点击处理。
+- `src/client/sidebar-board.jsx`：Portal 定位 `nav.panelList`；检测 `.dsh-ssh-sidebar` 存在时把托管节点移到 SSH 面板之后，只隐藏原生工作区列表，保留 SSH 面板；`stopPropagation` 防止 React Portal 事件冒泡到侧栏 footer 的点击处理。
 - `src/client/session-view.jsx`：主面板（标签页、分区、批量管理、确认框、Toast）。
 - `src/client/api.js`：回收站路由的 fetch 封装。
 - `src/client/index.jsx`：注册 `main`、`sidebar.footer.action`、`settings.section`，注册中英文字典，注入 Host 服务。
@@ -191,7 +192,7 @@ npm run check   # build + test
 
 ## 已知限制
 
-- 会话模式隐藏原生工作区区域（保留挂载），依赖原生侧栏 `nav.panelList` / `.regionArea` 的 DOM 结构；DSH 若改动该结构，需要同步调整定位逻辑。
+- 会话模式只隐藏原生工作区列表、保留 dsh-ssh 远端面板，依赖原生侧栏 `nav.panelList` / `.regionArea` / `.dsh-ssh-sidebar` 的 DOM 结构；DSH 或 dsh-ssh 若改动该结构，需要同步调整定位逻辑。
 - 快捷键只在侧栏获得焦点或搜索框打开时生效，避免覆盖主窗口输入；`sidebar.session.row.hover` 原生行装饰仍未接入。
 - 右键菜单替换只作用于会话视图内部的行与工作区标题，原生工作区模式保留浏览器默认菜单。
 - 列表级状态不包含 per-session 错误，因此没有红色错误点。

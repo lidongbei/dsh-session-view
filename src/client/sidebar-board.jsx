@@ -51,6 +51,8 @@ export function SidebarHost({
 
     const node = document.createElement('div');
     node.className = 'dsv-boardHost';
+    // Start directly below the panel nav. If dsh-ssh renders its remote panel
+    // inside the native region, the effect below moves the host under it.
     nav.insertAdjacentElement('afterend', node);
     setHost(node);
 
@@ -76,11 +78,77 @@ export function SidebarHost({
 
   useLayoutEffect(() => {
     const region = regionRef.current;
-    if (host) host.hidden = !active;
+    if (!host) return undefined;
+    host.hidden = false;
     if (!region) return undefined;
-    region.style.display = active ? 'none' : '';
-    return () => {
+
+    // The native region is not a pure workspace list: dsh-ssh prepends its
+    // remote panel as `.dsh-ssh-sidebar`. Hiding the whole region would take
+    // that panel away, so keep it visible and hide only the native browser
+    // nodes; our pane then sits right below the SSH panel.
+    const HIDDEN = 'data-dsv-native-hidden';
+
+    const restoreRegion = () => {
+      for (const node of region.querySelectorAll(`[${HIDDEN}]`)) {
+        node.style.display = node.getAttribute(HIDDEN) ?? '';
+        node.removeAttribute(HIDDEN);
+      }
       region.style.display = '';
+      region.style.flex = '';
+      region.style.overflow = '';
+      region.style.minHeight = '';
+      region.style.height = '';
+    };
+
+    const apply = () => {
+      const nav = region.parentElement?.querySelector('nav') ?? region.previousElementSibling;
+      if (!active) {
+        restoreRegion();
+        host.classList.remove('dsv-boardHost--inline');
+        if (nav) nav.insertAdjacentElement('afterend', host);
+        host.style.flex = '0 0 auto';
+        host.style.height = 'auto';
+        return;
+      }
+
+      const ssh = region.querySelector(':scope > .dsh-ssh-sidebar');
+      if (ssh) {
+        if (host.parentElement !== region || host.previousElementSibling !== ssh) {
+          region.insertBefore(host, ssh.nextSibling);
+        }
+        host.classList.add('dsv-boardHost--inline');
+        for (const node of region.children) {
+          if (node === ssh || node === host || node.hasAttribute(HIDDEN)) continue;
+          node.setAttribute(HIDDEN, node.style.display);
+          node.style.display = 'none';
+        }
+        region.style.display = '';
+        region.style.flex = '1 1 auto';
+        region.style.overflow = 'visible';
+        region.style.minHeight = '0';
+        region.style.height = 'auto';
+        host.style.flex = '1 1 auto';
+        host.style.height = 'auto';
+        return;
+      }
+
+      restoreRegion();
+      host.classList.remove('dsv-boardHost--inline');
+      if (nav) nav.insertAdjacentElement('afterend', host);
+      region.style.display = 'none';
+      host.style.flex = '1 1 auto';
+      host.style.height = 'auto';
+    };
+
+    apply();
+    let observer;
+    if (typeof MutationObserver === 'function') {
+      observer = new MutationObserver(apply);
+      observer.observe(region, { childList: true });
+    }
+    return () => {
+      observer?.disconnect();
+      restoreRegion();
     };
   }, [active, host]);
 
