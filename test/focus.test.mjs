@@ -99,7 +99,7 @@ const fixture = `
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { SidebarWorkspacePane } from ${JSON.stringify(resolve(root, 'src/client/sidebar-workspace.jsx'))};
-import { FocusBar, createGroupId, groupName, updateGroup } from ${JSON.stringify(resolve(root, 'src/client/focus-mode.jsx'))};
+import { FocusBar, createGroupId, groupLabel, groupName, memberSummary, updateGroup } from ${JSON.stringify(resolve(root, 'src/client/focus-mode.jsx'))};
 import { zh } from ${JSON.stringify(resolve(root, 'src/client/locales.js'))};
 import { resetPrefs, setPrefs } from ${JSON.stringify(resolve(root, 'src/client/prefs.js'))};
 
@@ -162,6 +162,9 @@ globalThis.__FOCUS_HELPERS = {
   keptName: groupName(t, { id: 'x', name: '团队' }, 3),
   updated: updateGroup([{ id: 'a', name: 'A', workspaceIds: ['w1'] }], 'a', { name: '新名', workspaceIds: ['w1', 'w2'] }),
   missing: updateGroup([{ id: 'a' }], 'nope', { name: 'x' }),
+  label: groupLabel(t, { focusGroups: [{ id: 'g1', name: '前端' }] }, { id: 'g1', name: '前端' }),
+  summary: memberSummary({ workspaceIds: ['w1', 'w2', 'w3', 'gone'] }, workspaces, 2),
+  summaryEmpty: memberSummary({ workspaceIds: [] }, workspaces),
 };
 setPrefs({ focusGroups: [], focusGroupId: '' });
 globalThis.__FOCUS_OFF_HTML = renderToStaticMarkup(React.createElement(SidebarWorkspacePane, props));
@@ -216,6 +219,9 @@ test('focus mode filters the sidebar by the selected workspaces', async () => {
     assert.equal(helpers.keptName, '团队');
     assert.deepEqual(helpers.updated, [{ id: 'a', name: '新名', workspaceIds: ['w1', 'w2'] }]);
     assert.deepEqual(helpers.missing, [{ id: 'a' }]);
+    assert.equal(helpers.label, '前端');
+    assert.deepEqual(helpers.summary, { shown: ['App', 'Lib'], extra: 1, stale: 1, known: 3 });
+    assert.deepEqual(helpers.summaryEmpty, { shown: [], extra: 0, stale: 0, known: 0 });
 
     assert.ok(off.includes('App task one') && off.includes('Lib task'), 'focus off must list every workspace');
     assert.ok(!off.includes('<div class="dsv-focusBar">'), 'focus bar must stay hidden when no group is active');
@@ -231,6 +237,8 @@ test('focus mode filters the sidebar by the selected workspaces', async () => {
 
     assert.ok(bar.includes('前端') && bar.includes('class="dsv-focusBarCount"'), 'focus bar shows name and member count');
     assert.ok(bar.includes('1'), 'member count must match the group size');
+    assert.ok(bar.includes('切换'), 'focus bar must expose the switch action');
+    assert.ok(bar.includes('class="dsv-focusBarName"'), 'focus bar name must open the manager');
 
     assert.ok(empty.includes('专注'), 'an empty focused group must explain the empty state');
     assert.ok(!empty.includes('App task one'), 'empty focused group must not list unrelated sessions');

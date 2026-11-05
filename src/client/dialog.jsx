@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 
-export function Dialog({ title, children, onClose, footer }) {
+export function Dialog({ title, children, onClose, footer, wide = false }) {
   useEffect(() => {
     const onKeyDown = (event) => {
       if (event.key !== 'Escape') return;
@@ -15,7 +15,7 @@ export function Dialog({ title, children, onClose, footer }) {
   }, [onClose]);
   return createPortal(
     <div className="dsv-dialogOverlay" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <div className="dsv-dialog" role="dialog" aria-modal="true" aria-labelledby="dsv-side-dialog-title">
+      <div className={`dsv-dialog${wide ? ' dsv-dialogWide' : ''}`} role="dialog" aria-modal="true" aria-labelledby="dsv-side-dialog-title">
         <div className="dsv-dialogHead">
           <h2 id="dsv-side-dialog-title">{title}</h2>
         </div>

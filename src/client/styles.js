@@ -1222,12 +1222,22 @@ body.dsv-dragging * { -webkit-user-select: none !important; user-select: none !i
 .dsv-focusBarName {
   flex: 1;
   min-width: 0;
-  overflow: hidden;
+  height: 22px;
+  padding: 0 2px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
   color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 11px;
   font-weight: 500;
+  text-align: left;
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  cursor: pointer;
 }
+.dsv-focusBarName:hover { color: var(--dsw-alias-state-business-primary); }
 .dsv-focusBarCount { flex: none; font-size: 10px; color: var(--dsw-alias-label-tertiary); font-variant-numeric: tabular-nums; }
 .dsv-focusBarBtn {
   flex: none;
@@ -1242,27 +1252,54 @@ body.dsv-dragging * { -webkit-user-select: none !important; user-select: none !i
   cursor: pointer;
 }
 .dsv-focusBarBtn:hover { background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-primary); }
-.dsv-focusActive {
+
+.dsv-dialogWide { width: min(520px, 100%); }
+.dsv-btnSm { height: 26px; padding: 0 8px; border-radius: 7px; font-size: 11px; }
+
+.dsv-focusStatus {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 0 0 10px;
+  margin: 0 0 12px;
   padding: 8px 10px;
   border: 1px solid var(--dsw-alias-border-l3);
-  border-radius: 8px;
+  border-radius: 9px;
   background: var(--dsw-alias-interactive-bg-hover);
   color: var(--dsw-alias-label-secondary);
   font-size: 12px;
 }
-.dsv-focusActiveText { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dsv-focusList { display: flex; flex-direction: column; gap: 6px; max-height: 260px; overflow: auto; }
-.dsv-focusGroup { padding: 6px 8px; border: 1px solid var(--dsw-alias-border-l3); border-radius: 8px; }
-.dsv-focusGroup[data-active="true"] {
-  border-color: var(--dsw-alias-state-business-primary);
-  background: color-mix(in srgb, var(--dsw-alias-state-business-primary) 7%, transparent);
+.dsv-focusStatus[data-active="true"] {
+  border-color: color-mix(in srgb, var(--dsw-alias-state-business-primary) 45%, var(--dsw-alias-border-l3));
+  background: color-mix(in srgb, var(--dsw-alias-state-business-primary) 8%, transparent);
+  color: var(--dsw-alias-label-primary);
 }
-.dsv-focusGroupHead { display: flex; align-items: center; gap: 8px; }
-.dsv-focusName {
+.dsv-focusStatusIcon { display: inline-flex; flex: none; color: var(--dsw-alias-label-tertiary); }
+.dsv-focusStatus[data-active="true"] .dsv-focusStatusIcon { color: var(--dsw-alias-state-business-primary); }
+.dsv-focusStatusText { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.dsv-focusListHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 4px 0 8px;
+}
+.dsv-focusListTitle { font-size: 12px; font-weight: 600; color: var(--dsw-alias-label-primary); }
+.dsv-focusList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 380px;
+  overflow: auto;
+  padding-right: 2px;
+}
+.dsv-focusCard { padding: 8px 10px; border: 1px solid var(--dsw-alias-border-l3); border-radius: 10px; }
+.dsv-focusCard[data-active="true"] {
+  border-color: var(--dsw-alias-state-business-primary);
+  background: color-mix(in srgb, var(--dsw-alias-state-business-primary) 6%, transparent);
+}
+.dsv-focusCardHead { display: flex; align-items: center; gap: 6px; }
+.dsv-focusCardName {
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -1275,27 +1312,73 @@ body.dsv-dragging * { -webkit-user-select: none !important; user-select: none !i
   color: var(--dsw-alias-label-primary);
   font: inherit;
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
 }
-.dsv-focusName:hover { background: var(--dsw-alias-interactive-bg-hover); }
-.dsv-focusName span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dsv-focusMeta { flex: none; font-size: 10px; color: var(--dsw-alias-label-tertiary); font-variant-numeric: tabular-nums; }
-.dsv-focusActions { display: flex; flex: none; gap: 2px; margin-left: auto; }
+.dsv-focusCardName:hover { background: var(--dsw-alias-interactive-bg-hover); }
+.dsv-focusCardName span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dsv-focusBadge {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--dsw-alias-state-business-primary);
+  color: #fff;
+  font-size: 10px;
+  line-height: 14px;
+}
+.dsv-focusMeta { flex: none; margin-left: auto; font-size: 10px; color: var(--dsw-alias-label-tertiary); font-variant-numeric: tabular-nums; }
+.dsv-focusChips { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0 0; }
+.dsv-focusChip {
+  max-width: 150px;
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-secondary);
+  font-size: 10px;
+  line-height: 15px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dsv-focusChip[data-more="true"] { color: var(--dsw-alias-label-tertiary); }
+.dsv-focusChip[data-stale="true"] {
+  color: var(--dsw-alias-state-error-primary);
+  background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 10%, transparent);
+}
+.dsv-focusChipEmpty { font-size: 10px; line-height: 15px; color: var(--dsw-alias-label-tertiary); }
+.dsv-focusCardFoot { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.dsv-focusCardActions { display: flex; gap: 2px; margin-left: auto; }
 .dsv-focusRename { display: inline-flex; flex: 1; align-items: center; gap: 6px; min-width: 0; }
-.dsv-focusRename .dsv-input { height: 28px; }
+.dsv-focusRename .dsv-input { height: 26px; }
 .dsv-focusMembers {
   display: flex;
   flex-direction: column;
-  margin-top: 6px;
-  padding-top: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
   border-top: 1px solid var(--dsw-alias-border-l3);
 }
+.dsv-focusMembersHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+  font-size: 10px;
+  color: var(--dsw-alias-label-tertiary);
+}
+.dsv-focusMembersTools { display: flex; gap: 2px; }
 .dsv-focusDanger { color: var(--dsw-alias-state-error-primary); }
-.dsv-focusCreate { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--dsw-alias-border-l3); }
-.dsv-focusCreateHead { margin-bottom: 6px; font-size: 12px; font-weight: 600; color: var(--dsw-alias-label-primary); }
-.dsv-focusCreate .dsv-input { width: 100%; height: 30px; margin-bottom: 6px; }
-.dsv-focusCreate .dsv-focusMembers { max-height: 160px; overflow: auto; margin-bottom: 8px; }
+.dsv-focusCreate {
+  margin: 0 0 10px;
+  padding: 10px;
+  border: 1px solid var(--dsw-alias-border-l3);
+  border-radius: 10px;
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+.dsv-focusCreate .dsv-input { width: 100%; height: 30px; margin-bottom: 8px; }
+.dsv-focusCreate .dsv-focusMembers { margin-top: 0; padding-top: 0; border-top: 0; max-height: 150px; overflow: auto; }
+.dsv-focusCreateFoot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
+.dsv-focusCreateFoot .dsv-sideHint { margin: 0; }
 .dsv-focusEntry { gap: 5px; }
 .dsv-focusEntryDot { width: 6px; height: 6px; border-radius: 999px; background: var(--dsw-alias-state-business-primary); }
 `;
