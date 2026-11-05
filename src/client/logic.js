@@ -342,7 +342,7 @@ export function topRows(rows, limit) {
 }
 
 /** Turn host trash records into renderable rows, preferring live summaries. */
-export function trashRows(items, byId = {}) {
+export function trashRows(items, byId = {}, workspaces) {
   const latest = new Map();
   for (const item of items ?? []) {
     if (!item || typeof item.sessionId !== 'string') continue;
@@ -362,6 +362,7 @@ export function trashRows(items, byId = {}) {
       return {
         session: summary,
         title: sessionTitle(summary),
+        workspace: resolveWorkspace(summary, new Map(), byId) ?? workspaceByPath(workspaces, summary.cwd),
         depth: 0,
         orphan: false,
         status: 'idle',

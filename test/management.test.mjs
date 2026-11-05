@@ -62,8 +62,11 @@ test('trashRows prefers the live summary and orders by deletion time', () => {
       { sessionId: 'a', title: 'duplicate', deletedAt: 50 },
     ],
     byId,
+    { items: [{ workspaceId: 'w1', path: 'D:/x', title: 'X', sessionIds: [] }] },
   );
   assert.deepEqual(rows.map((item) => item.session.id), ['a', 'b']);
+  assert.equal(rows[0].workspace.workspaceId, 'w1');
+  assert.equal(rows[1].workspace, undefined);
   assert.equal(rows[0].title, 'Live A');
   assert.equal(rows[0].session.cwd, 'D:/x');
   assert.equal(rows[1].title, 'Stored B');

@@ -391,6 +391,7 @@ export const STYLES = `
   .dsv-select { min-width: 120px; }
 }
 .dsv-headActions { display: flex; align-items: center; gap: 8px; flex: none; }
+.dsv-toolbarActions { display: flex; align-items: center; gap: 8px; margin-left: auto; flex: none; }
 .dsv-btn {
   display: inline-flex;
   align-items: center;

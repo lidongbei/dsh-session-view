@@ -150,10 +150,10 @@ export function SessionView({
     return rows.filter((row) => matchesQuery(row, query));
   }, [sessions, workspaces?.archivedSessionIds, query, prefs.showSubagents, trashedIds, staleIds]);
   const trashed = useMemo(() => {
-    const all = trashRows(trash.items, sessions?.byId);
+    const all = trashRows(trash.items, sessions?.byId, workspaces);
     const rows = prefs.showSubagents ? all : all.filter((row) => row.session.origin !== 'subagent');
     return rows.filter((row) => matchesQuery(row, query) && !staleIds.has(row.session.id));
-  }, [trash.items, sessions?.byId, query, prefs.showSubagents, staleIds]);
+  }, [trash.items, sessions?.byId, workspaces, query, prefs.showSubagents, staleIds]);
 
   const workspaceOptions = useMemo(() => {
     const byWorkspace = new Map();
@@ -474,7 +474,7 @@ export function SessionView({
     const workspaceName = row.workspace
       ? workspaceLabel(row.workspace) || t('workspace.unknown')
       : t('workspace.unknown');
-    const meta = tab === 'trash' ? t('trash.deletedAt', { time: timeLabel }) : `${workspaceName} · ${timeLabel}`;
+    const meta = tab === 'trash' ? `${workspaceName} · ${t('trash.deletedAt', { time: timeLabel })}` : `${workspaceName} · ${timeLabel}`;
     const title = row.session.blank ? t('row.newSession') : row.title;
 
     return (
@@ -714,29 +714,6 @@ export function SessionView({
               {t('counts.summary', { n: tabCounts[tab] })}
             </span>
           )}
-          {tab !== 'settings' && (
-            <div className="dsv-headActions">
-              <button
-                type="button"
-                className="dsv-btn"
-                disabled={sectionKeys.length === 0}
-                onClick={() => setCollapsedSections(allCollapsed ? new Set() : new Set(sectionKeys))}
-              >
-                {t(allCollapsed ? 'action.expandAll' : 'action.collapseAll')}
-              </button>
-              <button
-                type="button"
-                className="dsv-btn"
-                aria-pressed={manage}
-                onClick={() => {
-                  setManage((prev) => !prev);
-                  setSelected([]);
-                }}
-              >
-                {t(manage ? 'manage.done' : 'manage.start')}
-              </button>
-            </div>
-          )}
         </header>
 
         <nav className="dsv-tabs" role="tablist" aria-label={t('title')}>
@@ -802,6 +779,27 @@ export function SessionView({
             <span className="dsv-chevron">
               <ChevronDownIcon />
             </span>
+          </div>
+          <div className="dsv-toolbarActions">
+            <button
+              type="button"
+              className="dsv-btn"
+              disabled={sectionKeys.length === 0}
+              onClick={() => setCollapsedSections(allCollapsed ? new Set() : new Set(sectionKeys))}
+            >
+              {t(allCollapsed ? 'action.expandAll' : 'action.collapseAll')}
+            </button>
+            <button
+              type="button"
+              className="dsv-btn"
+              aria-pressed={manage}
+              onClick={() => {
+                setManage((prev) => !prev);
+                setSelected([]);
+              }}
+            >
+              {t(manage ? 'manage.done' : 'manage.start')}
+            </button>
           </div>
         </div>
         )}
