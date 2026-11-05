@@ -609,3 +609,23 @@ export function focusIncludesPath(prefs, workspaces, cwd) {
   const workspace = workspaceByPath(workspaces, cwd);
   return Boolean(workspace) && ids.has(workspace.workspaceId);
 }
+
+/**
+ * Member-scoped variants used by the expandable focus group rows: the same
+ * filtering, but driven by an explicit id set instead of the active prefs.
+ */
+export function filterRowsByWorkspaceIds(rows, ids) {
+  if (!ids || ids.size === 0) return [];
+  return rows.filter((row) => {
+    const workspaceId = row.workspace?.workspaceId;
+    return typeof workspaceId === 'string' && ids.has(workspaceId);
+  });
+}
+
+export function restrictWorkspacesToIds(workspaces, ids) {
+  if (!ids || ids.size === 0) return { ...workspaces, items: [] };
+  return {
+    ...workspaces,
+    items: (workspaces?.items ?? []).filter((workspace) => workspace && ids.has(workspace.workspaceId)),
+  };
+}

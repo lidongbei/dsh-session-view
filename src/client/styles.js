@@ -1406,6 +1406,11 @@ body.dsv-dragging * { -webkit-user-select: none !important; user-select: none !i
 .dsv-focusRowName { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dsv-focusRowMeta { flex: none; font-size: 10px; color: var(--dsw-alias-label-tertiary); font-variant-numeric: tabular-nums; }
 .dsv-focusBlank { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 2px 4px 6px; }
+.dsv-focusChevron { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 10px; color: var(--dsw-alias-label-tertiary); }
+.dsv-focusRowMain .dsv-focusChevron { margin-right: -1px; }
+.dsv-focusBody { display: flex; flex-direction: column; gap: 2px; margin: 0 0 4px 9px; padding-left: 5px; border-left: 1px solid var(--dsw-alias-border-l3); }
+.dsv-focusBody .dsv-sideGroupHead { border-radius: 7px; }
+.dsv-focusEmptyBody { padding: 2px 6px 4px; }
 `;
 
 export const BOARD_ONLY_STYLES = '';

@@ -8,6 +8,7 @@ import {
   buildRows,
   filterRows,
   filterRowsByFocus,
+  filterRowsByWorkspaceIds,
   focusGroupById,
   focusIncludesPath,
   formatRelativeTime,
@@ -15,6 +16,7 @@ import {
   moveId,
   pendingLabelKey,
   restrictWorkspaces,
+  restrictWorkspacesToIds,
   sessionTitle,
   splitSections,
   statusLabelKey,
@@ -176,6 +178,7 @@ export function SidebarWorkspacePane({
   const focusedRef = useRef(null);
 
   const collapsedGroups = useMemo(() => new Set(prefs.collapsedGroups ?? []), [prefs.collapsedGroups]);
+  const focusExpandedSet = useMemo(() => new Set(prefs.focusExpanded ?? []), [prefs.focusExpanded]);
 
   useEffect(() => {
     if (searchOpen) searchRef.current?.focus();
@@ -313,19 +316,23 @@ export function SidebarWorkspacePane({
     [annotated, prefs.showIdle],
   );
 
-  const groups = useMemo(() => {
-    const built = groupByWorkspace(restRows, focusWorkspaces, prefs.nestWorkspaces);
-    return built
-      .map((group) => {
-        const key = group.workspace?.workspaceId ?? '__none';
-        const sorted =
-          prefs.sort === 'manual' ? applyFamilyOrder(group.rows, prefs.manualOrder[key]) : sortFamilies(group.rows, byUpdated);
-        return { ...group, rows: sorted, key };
-      })
-      // Empty workspaces stay visible: their header is still a useful place to
-      // start a session from the workspace context menu.
-      ;
-  }, [restRows, focusWorkspaces, prefs.nestWorkspaces, prefs.sort, prefs.manualOrder]);
+  // Shared by the workspace section and the expandable focus group bodies.
+  // Empty workspaces stay visible: their header is still a useful place to
+  // start a session from the workspace context menu.
+  const buildGroups = (rows, workspaceView) => {
+    if (!workspaceView) return [];
+    return groupByWorkspace(rows, workspaceView, prefs.nestWorkspaces).map((group) => {
+      const key = group.workspace?.workspaceId ?? '__none';
+      const sorted =
+        prefs.sort === 'manual' ? applyFamilyOrder(group.rows, prefs.manualOrder[key]) : sortFamilies(group.rows, byUpdated);
+      return { ...group, rows: sorted, key };
+    });
+  };
+
+  const groups = useMemo(
+    () => buildGroups(restRows, focusWorkspaces),
+    [restRows, focusWorkspaces, prefs.nestWorkspaces, prefs.sort, prefs.manualOrder],
+  );
 
   const archived = useMemo(() => {
     if (prefs.archivedFilter === 'hide') return [];
@@ -445,6 +452,16 @@ export function SidebarWorkspacePane({
 
   const showMore = (key) => {
     setExpandedGroups((prev) => ({ ...prev, [key]: (prev[key] ?? 0) + 5 }));
+  };
+
+  const toggleFocusExpanded = (id) => {
+    const next = new Set(prefs.focusExpanded ?? []);
+    if (next.has(id)) {
+      next.delete(id);
+    } else {
+      next.add(id);
+    }
+    setPrefs({ focusExpanded: [...next] });
   };
 
   const showLess = (key) => {
@@ -1088,33 +1105,55 @@ export function SidebarWorkspacePane({
                     {prefs.focusGroups.map((entry) => {
                       const active = entry.id === prefs.focusGroupId;
                       const summary = memberSummary(entry, workspaces);
+                      const expanded = focusExpandedSet.has(entry.id);
+                      const memberIds = new Set(entry.workspaceIds);
+                      const memberGroups = expanded
+                        ? buildGroups(
+                            filterRowsByWorkspaceIds(restRows, memberIds),
+                            restrictWorkspacesToIds(workspaces, memberIds),
+                          )
+                        : [];
                       return (
-                        <div
-                          key={entry.id}
-                          className="dsv-focusRow"
-                          data-active={active}
-                          onContextMenu={(event) => {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            closeMenus();
-                            setContextMenu({ kind: 'focus', id: entry.id, x: event.clientX, y: event.clientY });
-                          }}
-                        >
-                          <button
-                            type="button"
-                            className="dsv-focusRowMain"
-                            aria-pressed={active}
-                            title={active ? t('focus.exit') : t('focus.enter')}
-                            onClick={() => setPrefs({ focusGroupId: active ? '' : entry.id })}
+                        <div key={entry.id}>
+                          <div
+                            className="dsv-focusRow"
+                            data-active={active}
+                            data-open={expanded || undefined}
+                            onContextMenu={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              closeMenus();
+                              setContextMenu({ kind: 'focus', id: entry.id, x: event.clientX, y: event.clientY });
+                            }}
                           >
-                            <span className="dsv-focusDot" aria-hidden="true" />
-                            <span className="dsv-focusRowName">{groupLabel(t, prefs, entry)}</span>
-                            <span className="dsv-focusRowMeta">
-                              {summary.stale > 0
-                                ? t('focus.staleCount', { n: summary.stale })
-                                : t('focus.memberCount', { n: entry.workspaceIds.length })}
-                            </span>
-                          </button>
+                            <button
+                              type="button"
+                              className="dsv-focusRowMain"
+                              aria-expanded={expanded}
+                              title={t(expanded ? 'focus.collapse' : 'focus.expand')}
+                              onClick={() => toggleFocusExpanded(entry.id)}
+                            >
+                              <span className="dsv-focusChevron" data-collapsed={!expanded}>
+                                {expanded ? <ChevronDownIcon size={10} /> : <ChevronRightIcon size={10} />}
+                              </span>
+                              <span className="dsv-focusDot" aria-hidden="true" />
+                              <span className="dsv-focusRowName">{groupLabel(t, prefs, entry)}</span>
+                              <span className="dsv-focusRowMeta">
+                                {summary.stale > 0
+                                  ? t('focus.staleCount', { n: summary.stale })
+                                  : t('focus.memberCount', { n: entry.workspaceIds.length })}
+                              </span>
+                            </button>
+                          </div>
+                          {expanded && (
+                            <div className="dsv-focusBody">
+                              {memberGroups.length === 0 ? (
+                                <div className="dsv-sideHint dsv-focusEmptyBody">{t('focus.membersEmpty')}</div>
+                              ) : (
+                                memberGroups.map((group, index) => renderGroup(group, index))
+                              )}
+                            </div>
+                          )}
                         </div>
                       );
                     })}

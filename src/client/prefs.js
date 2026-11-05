@@ -29,6 +29,7 @@ export const DEFAULT_PREFS = Object.freeze({
   collapsedGroups: Object.freeze([]),
   focusGroups: Object.freeze([]),
   focusGroupId: '',
+  focusExpanded: Object.freeze([]),
 });
 
 const MODES = new Set(['session', 'native']);
@@ -71,6 +72,9 @@ function sanitize(raw) {
     : [];
   const focusGroups = sanitizeFocusGroups(value.focusGroups);
   const focusGroupId = focusGroups.some((group) => group.id === value.focusGroupId) ? value.focusGroupId : '';
+  const focusExpanded = Array.isArray(value.focusExpanded)
+    ? [...new Set(value.focusExpanded.filter((id) => typeof id === 'string' && focusGroups.some((group) => group.id === id)))]
+    : [];
   return {
     mode: MODES.has(value.mode) ? value.mode : DEFAULT_PREFS.mode,
     activeLimit: clampLimit(value.activeLimit, DEFAULT_PREFS.activeLimit),
@@ -91,11 +95,12 @@ function sanitize(raw) {
     collapsedGroups,
     focusGroups,
     focusGroupId,
+    focusExpanded,
   };
 }
 
 function fresh() {
-  return { ...DEFAULT_PREFS, manualOrder: {}, collapsedGroups: [], focusGroups: [], focusGroupId: '' };
+  return { ...DEFAULT_PREFS, manualOrder: {}, collapsedGroups: [], focusGroups: [], focusGroupId: '', focusExpanded: [] };
 }
 
 function load() {

@@ -10,6 +10,8 @@ import {
   focusIncludesPath,
   focusIncludesWorkspace,
   focusWorkspaceIds,
+  filterRowsByWorkspaceIds,
+  restrictWorkspacesToIds,
   restrictWorkspaces,
 } from '../src/client/logic.js';
 import { getPrefs, resetPrefs, setPrefs } from '../src/client/prefs.js';
@@ -58,8 +60,11 @@ test('preferences sanitize focus groups and the active selection', () => {
   assert.equal(getPrefs().focusGroupId, '');
   setPrefs({ focusGroupId: 'b' });
   assert.equal(getPrefs().focusGroupId, 'b');
+  setPrefs({ focusExpanded: ['a', 'a', 'gone', 7] });
+  assert.deepEqual(getPrefs().focusExpanded, ['a']);
   resetPrefs();
   assert.equal(getPrefs().focusGroupId, '');
+  assert.deepEqual(getPrefs().focusExpanded, []);
 });
 
 test('focus helpers filter rows and workspaces by the active group', () => {
@@ -93,6 +98,27 @@ test('focus helpers filter rows and workspaces by the active group', () => {
   assert.equal(focusIncludesPath(focused, workspaces, 'C:/work/app/deep'), true);
   assert.equal(focusIncludesPath(focused, workspaces, 'C:/work/other/deep'), false);
   assert.equal(focusIncludesPath(focused, workspaces, 'D:/elsewhere'), false);
+});
+
+test('focus member helpers scope rows and workspaces to an explicit id set', () => {
+  const rows = [row('a', 'w1'), row('b', 'w3'), row('c', null)];
+  assert.deepEqual(filterRowsByWorkspaceIds(rows, new Set(['w1'])).map((item) => item.session.id), ['a']);
+  assert.deepEqual(filterRowsByWorkspaceIds(rows, new Set(['w1', 'w3'])).map((item) => item.session.id), ['a', 'b']);
+  assert.deepEqual(filterRowsByWorkspaceIds(rows, new Set()), []);
+  assert.deepEqual(filterRowsByWorkspaceIds(rows, null), []);
+
+  const workspaces = {
+    items: [
+      { workspaceId: 'w1', path: 'C:/work/app' },
+      { workspaceId: 'w3', path: 'C:/work/other' },
+    ],
+    state: 'ready',
+  };
+  const one = restrictWorkspacesToIds(workspaces, new Set(['w1']));
+  assert.deepEqual(one.items.map((item) => item.workspaceId), ['w1']);
+  assert.equal(one.state, 'ready');
+  assert.notEqual(one, workspaces);
+  assert.deepEqual(restrictWorkspacesToIds(workspaces, new Set()).items, []);
 });
 
 const fixture = `
@@ -183,6 +209,13 @@ globalThis.__FOCUS_BAR_HTML = renderToStaticMarkup(React.createElement(FocusBar,
 
 setPrefs({ focusGroups: [{ id: 'g2', name: '', workspaceIds: ['w3'] }], focusGroupId: 'g2' });
 globalThis.__FOCUS_EMPTY_HTML = renderToStaticMarkup(React.createElement(SidebarWorkspacePane, props));
+
+setPrefs({
+  focusGroups: [{ id: 'g1', name: '前端', workspaceIds: ['w1'] }],
+  focusGroupId: '',
+  focusExpanded: ['g1'],
+});
+globalThis.__FOCUS_EXPANDED_HTML = renderToStaticMarkup(React.createElement(SidebarWorkspacePane, props));
 resetPrefs();
 `;
 
@@ -207,11 +240,13 @@ test('focus mode filters the sidebar by the selected workspaces', async () => {
     const on = globalThis.__FOCUS_ON_HTML;
     const bar = globalThis.__FOCUS_BAR_HTML;
     const empty = globalThis.__FOCUS_EMPTY_HTML;
+    const expanded = globalThis.__FOCUS_EXPANDED_HTML;
     const helpers = globalThis.__FOCUS_HELPERS;
     delete globalThis.__FOCUS_OFF_HTML;
     delete globalThis.__FOCUS_ON_HTML;
     delete globalThis.__FOCUS_BAR_HTML;
     delete globalThis.__FOCUS_EMPTY_HTML;
+    delete globalThis.__FOCUS_EXPANDED_HTML;
     delete globalThis.__FOCUS_HELPERS;
 
     assert.match(helpers.id, /^focus-[a-z0-9]+-[a-z0-9]+$/);
@@ -225,14 +260,15 @@ test('focus mode filters the sidebar by the selected workspaces', async () => {
 
     assert.ok(off.includes('App task one') && off.includes('Lib task'), 'focus off must list every workspace');
     assert.ok(!off.includes('<div class="dsv-focusBar">'), 'focus bar must stay hidden when no group is active');
-    assert.match(off, /aria-pressed="false"/);
+    assert.ok(!off.includes('class="dsv-focusBody"'), 'collapsed focus rows must not render a body');
 
     assert.ok(on.includes('App task one') && on.includes('App task two'), 'focused workspace rows must render');
     assert.ok(!on.includes('Lib task'), 'sessions outside the focus group must be hidden');
     assert.ok(!on.includes('Other'), 'workspaces outside the focus group must be hidden');
     assert.ok(on.includes('<div class="dsv-focusBar">'), 'focus bar must render while a group is active');
     assert.ok(on.includes('前端'), 'focus bar must show the group name');
-    assert.match(on, /aria-pressed="true"/);
+    assert.match(on, /aria-expanded="false"/, 'focus rows start collapsed');
+    assert.ok(!on.includes('class="dsv-focusBody"'), 'entering a group must not expand it on its own');
     assert.ok(on.includes('退出专注'), 'focus bar must expose the exit action');
 
     assert.ok(bar.includes('前端') && bar.includes('class="dsv-focusBarCount"'), 'focus bar shows name and member count');
@@ -248,6 +284,16 @@ test('focus mode filters the sidebar by the selected workspaces', async () => {
     assert.ok(on.includes('<div class="dsv-focusRow" data-active="true">'), 'active focus row must be marked');
     assert.match(on, /class="dsv-focusRowName">前端</, 'focus section must list the group name');
     assert.ok(!on.includes('dsv-focusRowEdit'), 'focus rows must not render a per-row manage button');
+    assert.match(on, /class="dsv-focusChevron" data-collapsed="true"/, 'focus rows must expose an expand chevron');
+
+    const bodyStart = expanded.indexOf('class="dsv-focusBody"');
+    assert.ok(bodyStart > -1, 'expanded focus rows must render a body');
+    const body = expanded.slice(bodyStart, expanded.indexOf('</section>', bodyStart));
+    assert.match(expanded, /data-open="true"/, 'expanded focus rows must be marked open');
+    assert.ok(body.includes('dsv-sideGroupHead'), 'the body must render workspace headers in the workspace style');
+    assert.ok(body.includes('App task one') && body.includes('App task two'), 'the body must list member sessions');
+    assert.ok(!body.includes('Lib task'), 'the body must not list sessions of non-member workspaces');
+    assert.ok(!expanded.includes('dsv-focusRowEdit'), 'expanded rows must still avoid a per-row manage button');
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
