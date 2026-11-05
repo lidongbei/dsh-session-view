@@ -30,7 +30,6 @@ import {
   ClockIcon,
   FolderIcon,
   LayoutIcon,
-  MoreIcon,
   PinIcon,
   PlusIcon,
   RestoreIcon,
@@ -745,7 +744,6 @@ export function SidebarWorkspacePane({
     const key = group.key;
     const collapsable = !!workspace;
     const collapsed = collapsedGroups.has(key);
-    const menuOpen = menu?.kind === 'workspace' && menu.id === key;
     const activeCount = activeRows(group.rows).length;
     return (
       <div
@@ -843,36 +841,6 @@ export function SidebarWorkspacePane({
             >
               <PlusIcon size={12} />
             </button>
-          )}
-          {workspace && (
-            <div className="dsv-menuWrap">
-              <button
-                type="button"
-                className="dsv-sideIconBtn"
-                aria-haspopup="menu"
-                aria-expanded={menuOpen}
-                aria-label={t('action.menu')}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  setMenu(menuOpen ? null : { kind: 'workspace', id: key });
-                }}
-              >
-                <MoreIcon size={13} />
-              </button>
-              {menuOpen && (
-                <div className="dsv-menu" role="menu" onPointerDown={(event) => event.stopPropagation()}>
-                  <button type="button" role="menuitem" onClick={() => { setMenu(null); startSession(workspace.workspaceId); }}>
-                    {t('action.newSession')}
-                  </button>
-                  <button type="button" role="menuitem" onClick={() => { setMenu(null); setDialog({ kind: 'renameWorkspace', workspace }); }}>
-                    {t('action.renameWorkspace')}
-                  </button>
-                  <button type="button" role="menuitem" className="dsv-danger" onClick={() => { setMenu(null); setDialog({ kind: 'deleteWorkspace', workspace }); }}>
-                    {t('action.deleteWorkspace')}
-                  </button>
-                </div>
-              )}
-            </div>
           )}
         </div>
       </div>

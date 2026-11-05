@@ -133,6 +133,7 @@ test('SidebarWorkspacePane renders pinned and a limited active group', async () 
     assert.ok(!html.includes('dsv-sideFolder'), 'workspace folder icon must be gone');
     assert.ok(html.includes('dsv-sideChevron'), 'workspace disclosure chevron missing');
     assert.ok(html.includes('工作区会话'), 'missing workspace section heading');
+    assert.ok(!html.includes('更多操作'), 'workspace ellipsis menu should be gone');
     assert.ok(!html.includes('dsv-sidePin'), 'row pin indicator must be gone');
     assert.ok(html.includes('dsv-sideActiveMark'), 'workspace active marker missing');
     assert.ok(html.includes('title="有活跃会话"'), 'workspace active marker label missing');
