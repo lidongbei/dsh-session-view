@@ -155,6 +155,8 @@ export function SidebarWorkspacePane({
   openPanel,
 }) {
   const prefs = usePrefs();
+  const glowFor = (row) =>
+    row.status === 'running' ? prefs.glowRunning : row.status === 'pending' ? prefs.glowPending : 'off';
   const focusGroup = focusGroupById(prefs);
   const sessions = useSessions((state) => state);
   const statuses = useSessionStatus((state) => state);
@@ -688,9 +690,9 @@ export function SidebarWorkspacePane({
           setContextMenu({ kind: 'session', id: row.session.id, archived: archivedRow, x: event.clientX, y: event.clientY });
         }}
       >
-        {!archivedRow && prefs.glowEffect !== 'off' && (row.status === 'running' || row.status === 'pending') && (
+        {!archivedRow && glowFor(row) !== 'off' && (
           <span
-            className={`dsv-sideGlow dsv-sideGlow--${prefs.glowEffect}`}
+            className={`dsv-sideGlow dsv-sideGlow--${glowFor(row)}`}
             data-status={row.status}
             aria-hidden="true"
           />

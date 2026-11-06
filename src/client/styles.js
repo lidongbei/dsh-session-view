@@ -887,50 +887,125 @@ export const STYLES = `
 .dsv-sideGroupHead:hover .dsv-sideGroupActions,
 .dsv-sideGroupHead:focus-within .dsv-sideGroupActions { opacity: 1; }
 
-/* Optional animated border for running / waiting session rows (settings.glowEffect). */
+/* Optional animated border for running / waiting session rows (system settings). */
 .dsv-sideGlow {
+  --glow-a: var(--dsw-alias-state-business-primary);
+  --glow-b: #7dd3fc;
+  --glow-c: #a78bfa;
   position: absolute;
   inset: 0;
   z-index: 1;
-  padding: 1px;
+  padding: 1.5px;
   border-radius: inherit;
   pointer-events: none;
-  background: var(--dsw-alias-state-business-primary);
+  background: var(--glow-a);
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   mask-composite: exclude;
 }
-.dsv-sideGlow[data-status="pending"] { background: var(--dsw-alias-state-warn-primary); }
-.dsv-sideGlow--marquee {
-  background: linear-gradient(100deg, transparent 0%, transparent 30%, var(--dsw-alias-state-business-primary) 44%, #fff 50%, var(--dsw-alias-state-business-primary) 56%, transparent 70%, transparent 100%);
-  background-size: 250% 100%;
-  animation: dsvGlowMarquee 2.4s linear infinite;
+.dsv-sideGlow[data-status="pending"] {
+  --glow-a: var(--dsw-alias-state-warn-primary);
+  --glow-b: #fdba74;
+  --glow-c: #f472b6;
 }
-.dsv-sideGlow--marquee[data-status="pending"] {
-  background: linear-gradient(100deg, transparent 0%, transparent 30%, var(--dsw-alias-state-warn-primary) 44%, #fff 50%, var(--dsw-alias-state-warn-primary) 56%, transparent 70%, transparent 100%);
-  background-size: 250% 100%;
+.dsv-sideGlow--marquee {
+  background: linear-gradient(100deg, transparent 12%, color-mix(in srgb, var(--glow-a) 55%, transparent) 36%, var(--glow-a) 47%, color-mix(in srgb, var(--glow-b) 90%, white) 50%, var(--glow-a) 53%, color-mix(in srgb, var(--glow-a) 55%, transparent) 64%, transparent 88%);
+  background-size: 260% 100%;
+  animation: dsvGlowMarquee 2.6s linear infinite;
 }
 .dsv-sideGlow--aurora {
-  background: linear-gradient(115deg, var(--dsw-alias-state-business-primary), var(--dsw-alias-state-success-primary), var(--dsw-alias-state-warn-primary), var(--dsw-alias-state-business-primary));
-  background-size: 300% 300%;
-  animation: dsvGlowAurora 5s ease infinite;
+  background: linear-gradient(115deg, var(--glow-a), var(--glow-b), var(--glow-c), var(--glow-a));
+  background-size: 340% 340%;
+  animation: dsvGlowAurora 6s ease-in-out infinite;
 }
-.dsv-sideGlow--pulse { animation: dsvGlowPulse 1.6s ease-in-out infinite; }
+.dsv-sideGlow--pulse {
+  background: var(--glow-a);
+  animation: dsvGlowPulse 2s ease-in-out infinite;
+}
 @keyframes dsvGlowMarquee {
-  from { background-position: 150% 0; }
-  to { background-position: -100% 0; }
+  from { background-position: 160% 0; }
+  to { background-position: -120% 0; }
 }
 @keyframes dsvGlowAurora {
   0%, 100% { background-position: 0% 50%; }
   50% { background-position: 100% 50%; }
 }
 @keyframes dsvGlowPulse {
-  0%, 100% { opacity: 0.35; }
+  0%, 100% { opacity: 0.3; }
   50% { opacity: 1; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .dsv-sideGlow { animation: none !important; opacity: 0.85; }
+  .dsv-sideGlow { animation: none !important; opacity: 0.8; }
+}
+
+.dsv-glowCard {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--dsw-alias-border-l3);
+  border-radius: 12px;
+  margin-bottom: 8px;
+}
+.dsv-glowCardHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.dsv-glowCardTitle {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--dsw-alias-label-primary);
+}
+.dsv-glowPreview {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 8px;
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+.dsv-glowPreviewTitle {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--dsw-alias-label-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dsv-glowPreviewTime {
+  flex: none;
+  font-size: 10px;
+  color: var(--dsw-alias-label-tertiary);
+}
+.dsv-glowChoices {
+  display: flex;
+  gap: 6px;
+}
+.dsv-glowChoice {
+  flex: 1 1 0;
+  height: 26px;
+  padding: 0 6px;
+  border: 1px solid var(--dsw-alias-border-l3);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 11px;
+  cursor: pointer;
+}
+.dsv-glowChoice:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+.dsv-glowChoice[aria-pressed="true"] {
+  border-color: var(--dsw-alias-state-business-primary);
+  color: var(--dsw-alias-label-primary);
+  background: color-mix(in srgb, var(--dsw-alias-state-business-primary) 14%, transparent);
 }
 
 .dsv-sideRow {

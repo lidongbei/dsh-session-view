@@ -2,6 +2,8 @@ import { useSyncExternalStore } from 'react';
 import { getPrefs, resetPrefs, setPrefs, subscribePrefs } from './prefs.js';
 import { STYLES } from './styles.js';
 
+const GLOW_EFFECTS = ['marquee', 'aurora', 'pulse'];
+
 function Row({ label, description, children }) {
   return (
     <div className="dsv-settingRow">
@@ -176,18 +178,6 @@ export function SessionViewSettings({ t }) {
             <option value="only">{t('settings.archived.only')}</option>
           </select>
         </Row>
-        <Row label={t('settings.glow')} description={t('settings.desc.glow')}>
-          <select
-            className="dsv-select"
-            value={prefs.glowEffect || 'off'}
-            onChange={(event) => setPrefs({ glowEffect: event.target.value })}
-          >
-            <option value="off">{t('settings.glow.off')}</option>
-            <option value="marquee">{t('settings.glow.marquee')}</option>
-            <option value="aurora">{t('settings.glow.aurora')}</option>
-            <option value="pulse">{t('settings.glow.pulse')}</option>
-          </select>
-        </Row>
         <Toggle
           label={t('settings.focusEnabled')}
           description={t('settings.desc.focusEnabled')}
@@ -206,6 +196,54 @@ export function SessionViewSettings({ t }) {
           value={prefs.compact}
           onChange={(value) => setPrefs({ compact: value })}
         />
+      </Group>
+
+      <Group title={t('settings.group.glow')} description={t('settings.glow.hint')}>
+        {['running', 'pending'].map((status) => {
+          const key = status === 'running' ? 'glowRunning' : 'glowPending';
+          const effect = prefs[key] || 'off';
+          const enabled = effect !== 'off';
+          return (
+            <div className="dsv-glowCard" key={status}>
+              <div className="dsv-glowCardHead">
+                <span className="dsv-glowCardTitle">{t(`settings.glow.${status}`)}</span>
+                <input
+                  className="dsv-switch"
+                  type="checkbox"
+                  role="switch"
+                  checked={enabled}
+                  aria-label={t(`settings.glow.${status}`)}
+                  onChange={(event) => setPrefs({ [key]: event.target.checked ? 'marquee' : 'off' })}
+                />
+              </div>
+              <div className="dsv-glowPreview" data-status={status}>
+                <span className="dsv-dot" data-status={status} />
+                <span className="dsv-glowPreviewTitle">{t('settings.glow.sample')}</span>
+                <span className="dsv-glowPreviewTime">{t('settings.glow.now')}</span>
+                {enabled ? (
+                  <span
+                    className={`dsv-sideGlow dsv-sideGlow--${effect}`}
+                    data-status={status}
+                    aria-hidden="true"
+                  />
+                ) : null}
+              </div>
+              <div className="dsv-glowChoices" role="group" aria-label={t('settings.glow.style')}>
+                {GLOW_EFFECTS.map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    className="dsv-glowChoice"
+                    aria-pressed={effect === option}
+                    onClick={() => setPrefs({ [key]: option })}
+                  >
+                    {t(`settings.glow.${option}`)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+        })}
       </Group>
 
       <footer className="dsv-settingsFooter">
