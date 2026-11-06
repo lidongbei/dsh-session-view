@@ -75,6 +75,9 @@ const props = {
 globalThis.__DSV_PANE_HTML = renderToStaticMarkup(React.createElement(SidebarWorkspacePane, props));
 const idleStatuses = new Map(ids.map((id) => [id, { running: false, completionUnread: false }]));
 setPrefs({ showIdle: false });
+setPrefs({ glowEffect: 'marquee' });
+globalThis.__DSV_PANE_HTML_GLOW = renderToStaticMarkup(React.createElement(SidebarWorkspacePane, props));
+resetPrefs();
 globalThis.__DSV_PANE_HTML_EMPTY = renderToStaticMarkup(
   React.createElement(SidebarWorkspacePane, { ...props, useSessionStatus: () => idleStatuses }),
 );
@@ -115,6 +118,10 @@ test('SidebarWorkspacePane renders pinned and a limited active group', async () 
     const empty = globalThis.__DSV_PANE_HTML_EMPTY;
     assert.ok(empty.includes('aria-label="活跃会话"'), 'empty active group heading must stay visible');
     assert.ok(empty.includes('aria-label="最近会话"'), 'empty recent group heading must stay visible');
+    assert.ok(!html.includes('class="dsv-sideGlow'), 'glow must default to off');
+    const glow = globalThis.__DSV_PANE_HTML_GLOW;
+    assert.ok(glow.includes('dsv-sideGlow--marquee'), 'marquee glow missing');
+    assert.ok(glow.includes('data-status="running"') && glow.includes('data-status="pending"'), 'glow must mark running and pending rows');
     assert.ok(html.includes('置顶'), 'missing pinned heading');
     assert.ok(html.includes('Pinned task'), 'missing pinned row');
     const active = html.match(/<section class="dsv-sideGroup" aria-label="活跃会话">([\s\S]*?)<\/section>/)?.[1] ?? '';

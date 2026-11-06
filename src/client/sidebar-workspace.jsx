@@ -667,6 +667,7 @@ export function SidebarWorkspacePane({
         key={row.session.id}
         className="dsv-sideRow"
         data-depth={row.depth ?? 0}
+        data-status={row.status}
         data-archived={archivedRow || undefined}
         data-pinned={isPinned || undefined}
         style={{ '--dsv-indent': `${(row.depth ?? 0) * 12}px` }}
@@ -687,6 +688,13 @@ export function SidebarWorkspacePane({
           setContextMenu({ kind: 'session', id: row.session.id, archived: archivedRow, x: event.clientX, y: event.clientY });
         }}
       >
+        {!archivedRow && prefs.glowEffect !== 'off' && (row.status === 'running' || row.status === 'pending') && (
+          <span
+            className={`dsv-sideGlow dsv-sideGlow--${prefs.glowEffect}`}
+            data-status={row.status}
+            aria-hidden="true"
+          />
+        )}
         <button
           type="button"
           className="dsv-sideOpen"

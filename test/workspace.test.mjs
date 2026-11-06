@@ -32,6 +32,7 @@ function workspace(workspaceId, path, patch = {}) {
 test('preferences default to session mode and clamp invalid input', () => {
   resetPrefs();
   assert.equal(getPrefs().mode, 'session');
+  assert.equal(getPrefs().glowEffect, 'off');
   assert.equal(getPrefs().activeLimit, 5);
   assert.deepEqual({ ...DEFAULT_PREFS.manualOrder }, {});
 
@@ -49,6 +50,7 @@ test('preferences default to session mode and clamp invalid input', () => {
   assert.equal(getPrefs().showRecent, true);
   assert.equal(getPrefs().showPinned, true);
   assert.equal(getPrefs().showActive, true);
+  assert.equal(getPrefs().glowEffect, 'off');
   assert.equal(getPrefs().recentLimit, 5);
   assert.equal(getPrefs().showTimes, true);
   setPrefs({
@@ -70,6 +72,10 @@ test('preferences default to session mode and clamp invalid input', () => {
   assert.equal(getPrefs().recentLimit, 5);
   assert.equal(getPrefs().showTimes, false);
   assert.equal(getPrefs().compact, true);
+  setPrefs({ glowEffect: 'marquee' });
+  assert.equal(getPrefs().glowEffect, 'marquee');
+  setPrefs({ glowEffect: 'bogus' });
+  assert.equal(getPrefs().glowEffect, 'off');
   assert.deepEqual(getPrefs().collapsedGroups, ['w1', 'w2']);
 
   resetPrefs();

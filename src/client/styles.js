@@ -886,6 +886,53 @@ export const STYLES = `
 .dsv-sideGroupActions { display: flex; flex: none; gap: 2px; opacity: 0; }
 .dsv-sideGroupHead:hover .dsv-sideGroupActions,
 .dsv-sideGroupHead:focus-within .dsv-sideGroupActions { opacity: 1; }
+
+/* Optional animated border for running / waiting session rows (settings.glowEffect). */
+.dsv-sideGlow {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  padding: 1px;
+  border-radius: inherit;
+  pointer-events: none;
+  background: var(--dsw-alias-state-business-primary);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+}
+.dsv-sideGlow[data-status="pending"] { background: var(--dsw-alias-state-warn-primary); }
+.dsv-sideGlow--marquee {
+  background: linear-gradient(100deg, transparent 0%, transparent 30%, var(--dsw-alias-state-business-primary) 44%, #fff 50%, var(--dsw-alias-state-business-primary) 56%, transparent 70%, transparent 100%);
+  background-size: 250% 100%;
+  animation: dsvGlowMarquee 2.4s linear infinite;
+}
+.dsv-sideGlow--marquee[data-status="pending"] {
+  background: linear-gradient(100deg, transparent 0%, transparent 30%, var(--dsw-alias-state-warn-primary) 44%, #fff 50%, var(--dsw-alias-state-warn-primary) 56%, transparent 70%, transparent 100%);
+  background-size: 250% 100%;
+}
+.dsv-sideGlow--aurora {
+  background: linear-gradient(115deg, var(--dsw-alias-state-business-primary), var(--dsw-alias-state-success-primary), var(--dsw-alias-state-warn-primary), var(--dsw-alias-state-business-primary));
+  background-size: 300% 300%;
+  animation: dsvGlowAurora 5s ease infinite;
+}
+.dsv-sideGlow--pulse { animation: dsvGlowPulse 1.6s ease-in-out infinite; }
+@keyframes dsvGlowMarquee {
+  from { background-position: 150% 0; }
+  to { background-position: -100% 0; }
+}
+@keyframes dsvGlowAurora {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+@keyframes dsvGlowPulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dsv-sideGlow { animation: none !important; opacity: 0.85; }
+}
+
 .dsv-sideRow {
   position: relative;
   display: flex;

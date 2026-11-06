@@ -176,6 +176,18 @@ export function SessionViewSettings({ t }) {
             <option value="only">{t('settings.archived.only')}</option>
           </select>
         </Row>
+        <Row label={t('settings.glow')} description={t('settings.desc.glow')}>
+          <select
+            className="dsv-select"
+            value={prefs.glowEffect || 'off'}
+            onChange={(event) => setPrefs({ glowEffect: event.target.value })}
+          >
+            <option value="off">{t('settings.glow.off')}</option>
+            <option value="marquee">{t('settings.glow.marquee')}</option>
+            <option value="aurora">{t('settings.glow.aurora')}</option>
+            <option value="pulse">{t('settings.glow.pulse')}</option>
+          </select>
+        </Row>
         <Toggle
           label={t('settings.focusEnabled')}
           description={t('settings.desc.focusEnabled')}

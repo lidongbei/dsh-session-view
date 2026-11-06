@@ -22,6 +22,7 @@ export const DEFAULT_PREFS = Object.freeze({
   showWorkspaces: true,
   showTimes: true,
   compact: false,
+  glowEffect: 'off',
   archivedFilter: 'hide',
   sort: 'updated',
   nestWorkspaces: true,
@@ -36,6 +37,7 @@ export const DEFAULT_PREFS = Object.freeze({
 const MODES = new Set(['session', 'native']);
 const ARCHIVED = new Set(['hide', 'show', 'only']);
 const SORTS = new Set(['updated', 'manual']);
+const GLOWS = new Set(['off', 'marquee', 'aurora', 'pulse']);
 
 function sanitizeFocusGroups(input) {
   if (!Array.isArray(input)) return [];
@@ -90,6 +92,7 @@ function sanitize(raw) {
     showTimes: value.showTimes !== false,
     compact: value.compact === true,
     archivedFilter: ARCHIVED.has(value.archivedFilter) ? value.archivedFilter : DEFAULT_PREFS.archivedFilter,
+    glowEffect: GLOWS.has(value.glowEffect) ? value.glowEffect : DEFAULT_PREFS.glowEffect,
     sort: SORTS.has(value.sort) ? value.sort : DEFAULT_PREFS.sort,
     nestWorkspaces: value.nestWorkspaces !== false,
     manualOrder,
