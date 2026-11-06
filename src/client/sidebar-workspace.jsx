@@ -1048,7 +1048,7 @@ export function SidebarWorkspacePane({
           </section>
         ) : (
           <>
-            {prefs.archivedFilter !== 'only' && prefs.showActive && activeRowsView.length > 0 && (
+            {prefs.archivedFilter !== 'only' && prefs.showActive && (
               <section className="dsv-sideGroup" aria-label={t('side.active')}>
                 {sectionHead({
                   key: '__active',
@@ -1079,7 +1079,7 @@ export function SidebarWorkspacePane({
               </section>
             )}
 
-            {prefs.archivedFilter !== 'only' && prefs.showRecent && recentRowsView.length > 0 && (
+            {prefs.archivedFilter !== 'only' && prefs.showRecent && (
               <section className="dsv-sideGroup" aria-label={t('side.recent')}>
                 {sectionHead({
                   key: '__recent',

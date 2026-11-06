@@ -73,6 +73,12 @@ const props = {
   openPanel: () => {},
 };
 globalThis.__DSV_PANE_HTML = renderToStaticMarkup(React.createElement(SidebarWorkspacePane, props));
+const idleStatuses = new Map(ids.map((id) => [id, { running: false, completionUnread: false }]));
+setPrefs({ showIdle: false });
+globalThis.__DSV_PANE_HTML_EMPTY = renderToStaticMarkup(
+  React.createElement(SidebarWorkspacePane, { ...props, useSessionStatus: () => idleStatuses }),
+);
+resetPrefs();
 setPrefs({ showRecent: false, showPinned: false, showActive: false });
 globalThis.__DSV_PANE_HTML_HIDDEN = renderToStaticMarkup(React.createElement(SidebarWorkspacePane, props));
 setPrefs({ showRecent: true, showPinned: true, showActive: true, collapsedGroups: ['__active', '__recent', '__pinned', '__workspaces'] });
@@ -106,6 +112,9 @@ test('SidebarWorkspacePane renders pinned and a limited active group', async () 
     assert.equal(typeof html, 'string');
 
     assert.ok(html.includes('活跃会话'), 'missing active group heading');
+    const empty = globalThis.__DSV_PANE_HTML_EMPTY;
+    assert.ok(empty.includes('aria-label="活跃会话"'), 'empty active group heading must stay visible');
+    assert.ok(empty.includes('aria-label="最近会话"'), 'empty recent group heading must stay visible');
     assert.ok(html.includes('置顶'), 'missing pinned heading');
     assert.ok(html.includes('Pinned task'), 'missing pinned row');
     const active = html.match(/<section class="dsv-sideGroup" aria-label="活跃会话">([\s\S]*?)<\/section>/)?.[1] ?? '';
