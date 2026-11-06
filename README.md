@@ -195,6 +195,7 @@ npm run uninstall:profile -- --profile web --apply              # 卸载（脚�
 - pnpm 报跨盘 `file:` 路径错误：改用 `--source link`，让脚本建立 profile 内 junction；
 - 安装成功但界面无变化：重启 `dsh web`，并检查 `dsh.profile.bundles` 是否包含 `dsh-session-view`；
 - 完全回退：`npm run uninstall:profile -- --profile web --apply`，删除 `local-plugins/dsh-session-view`，再重启。
+- 本地改代码后界面仍是旧行为：确认 `profiles/<profile>/node_modules/dsh-session-view` 是符号链接（不是 pnpm 复制出来的目录）；若是目录，重新执行 `npm run install:profile -- --profile web --source link --apply` 后再重启。
 
 ## 开发
 
