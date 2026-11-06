@@ -77,17 +77,18 @@ test('preferences default to session mode and clamp invalid input', () => {
   assert.equal(getPrefs().activeLimit, 5);
 });
 
-test('activeRows keeps top-level running, pending and parent-of-running rows', () => {
+test('activeRows keeps running, pending, done-unread and parent-of-running rows', () => {
   const rows = [
     row('idle'),
     row('running', { status: 'running' }),
     row('pending', { status: 'pending' }),
+    row('done', { status: 'done' }),
     row('parent', { status: 'idle', runningChildren: 1 }),
     row('child', { depth: 1, status: 'running' }),
   ];
   assert.deepEqual(
     activeRows(rows).map((item) => item.session.id),
-    ['running', 'pending', 'parent'],
+    ['running', 'pending', 'done', 'parent'],
   );
 });
 

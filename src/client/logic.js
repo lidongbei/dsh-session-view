@@ -417,6 +417,8 @@ export function activeRows(rows) {
   return topLevelRows(rows).filter(
     (row) => row.status === 'running'
       || row.status === 'pending'
+      // Completed but unread: keep it visible until the user opens it.
+      || row.status === 'done'
       || (row.runningChildren ?? 0) > 0
       || (row.session.blank === true && (row.session.retainedBy?.mainView ?? 0) > 0),
   );
