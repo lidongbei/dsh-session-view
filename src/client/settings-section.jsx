@@ -2,7 +2,7 @@ import { useSyncExternalStore } from 'react';
 import { getPrefs, resetPrefs, setPrefs, subscribePrefs } from './prefs.js';
 import { STYLES } from './styles.js';
 
-const GLOW_EFFECTS = ['marquee', 'aurora', 'pulse'];
+const GLOW_EFFECTS = ['marquee', 'aurora', 'pulse', 'rainbow', 'comet', 'scan', 'dash'];
 
 function Row({ label, description, children }) {
   return (
@@ -199,8 +199,8 @@ export function SessionViewSettings({ t }) {
       </Group>
 
       <Group title={t('settings.group.glow')} description={t('settings.glow.hint')}>
-        {['running', 'pending'].map((status) => {
-          const key = status === 'running' ? 'glowRunning' : 'glowPending';
+        {['running', 'pending', 'done'].map((status) => {
+          const key = status === 'running' ? 'glowRunning' : status === 'pending' ? 'glowPending' : 'glowDone';
           const effect = prefs[key] || 'off';
           const enabled = effect !== 'off';
           return (

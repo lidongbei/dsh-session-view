@@ -75,7 +75,7 @@ const props = {
 globalThis.__DSV_PANE_HTML = renderToStaticMarkup(React.createElement(SidebarWorkspacePane, props));
 const idleStatuses = new Map(ids.map((id) => [id, { running: false, completionUnread: false }]));
 setPrefs({ showIdle: false });
-setPrefs({ glowRunning: 'marquee', glowPending: 'aurora' });
+setPrefs({ glowRunning: 'marquee', glowPending: 'aurora', glowDone: 'scan' });
 globalThis.__DSV_PANE_HTML_GLOW = renderToStaticMarkup(React.createElement(SidebarWorkspacePane, props));
 resetPrefs();
 globalThis.__DSV_PANE_HTML_EMPTY = renderToStaticMarkup(
@@ -122,6 +122,7 @@ test('SidebarWorkspacePane renders pinned and a limited active group', async () 
     const glow = globalThis.__DSV_PANE_HTML_GLOW;
     assert.ok(glow.includes('dsv-sideGlow--marquee'), 'marquee glow missing');
     assert.ok(glow.includes('dsv-sideGlow--aurora'), 'aurora glow missing');
+    assert.ok(glow.includes('dsv-sideGlow--scan'), 'scan glow missing for done rows');
     assert.ok(glow.includes('data-status="running"') && glow.includes('data-status="pending"'), 'glow must mark running and pending rows');
     assert.ok(html.includes('置顶'), 'missing pinned heading');
     assert.ok(html.includes('Pinned task'), 'missing pinned row');

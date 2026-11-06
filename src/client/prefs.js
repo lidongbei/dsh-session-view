@@ -24,6 +24,7 @@ export const DEFAULT_PREFS = Object.freeze({
   compact: false,
   glowRunning: 'off',
   glowPending: 'off',
+  glowDone: 'off',
   archivedFilter: 'hide',
   sort: 'updated',
   nestWorkspaces: true,
@@ -38,7 +39,7 @@ export const DEFAULT_PREFS = Object.freeze({
 const MODES = new Set(['session', 'native']);
 const ARCHIVED = new Set(['hide', 'show', 'only']);
 const SORTS = new Set(['updated', 'manual']);
-const GLOWS = new Set(['off', 'marquee', 'aurora', 'pulse']);
+const GLOWS = new Set(['off', 'marquee', 'aurora', 'pulse', 'rainbow', 'comet', 'scan', 'dash']);
 
 function sanitizeFocusGroups(input) {
   if (!Array.isArray(input)) return [];
@@ -96,6 +97,7 @@ function sanitize(raw) {
     // Migrate the old single glowEffect onto both statuses.
     glowRunning: GLOWS.has(value.glowRunning) ? value.glowRunning : GLOWS.has(value.glowEffect) ? value.glowEffect : 'off',
     glowPending: GLOWS.has(value.glowPending) ? value.glowPending : GLOWS.has(value.glowEffect) ? value.glowEffect : 'off',
+    glowDone: GLOWS.has(value.glowDone) ? value.glowDone : GLOWS.has(value.glowEffect) ? value.glowEffect : 'off',
     sort: SORTS.has(value.sort) ? value.sort : DEFAULT_PREFS.sort,
     nestWorkspaces: value.nestWorkspaces !== false,
     manualOrder,

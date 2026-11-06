@@ -909,6 +909,11 @@ export const STYLES = `
   --glow-b: #fdba74;
   --glow-c: #f472b6;
 }
+.dsv-sideGlow[data-status="done"] {
+  --glow-a: var(--dsw-alias-state-success-primary);
+  --glow-b: #6ee7b7;
+  --glow-c: #22d3ee;
+}
 .dsv-sideGlow--marquee {
   background: linear-gradient(100deg, transparent 12%, color-mix(in srgb, var(--glow-a) 55%, transparent) 36%, var(--glow-a) 47%, color-mix(in srgb, var(--glow-b) 90%, white) 50%, var(--glow-a) 53%, color-mix(in srgb, var(--glow-a) 55%, transparent) 64%, transparent 88%);
   background-size: 260% 100%;
@@ -922,6 +927,40 @@ export const STYLES = `
 .dsv-sideGlow--pulse {
   background: var(--glow-a);
   animation: dsvGlowPulse 2s ease-in-out infinite;
+}
+@property --dsv-glow-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+.dsv-sideGlow--rainbow {
+  background: conic-gradient(from var(--dsv-glow-angle), #ff6b6b, #feca57, #48dbfb, #1dd1a1, #5f27cd, #ff6b6b);
+  animation: dsvGlowSpin 4s linear infinite;
+}
+.dsv-sideGlow--comet {
+  background: linear-gradient(100deg, transparent 24%, color-mix(in srgb, var(--glow-a) 45%, transparent) 40%, var(--glow-a) 48%, #fff 50%, var(--glow-a) 52%, transparent 62% 100%);
+  background-size: 320% 100%;
+  animation: dsvGlowComet 2.2s linear infinite;
+}
+.dsv-sideGlow--scan {
+  background: linear-gradient(90deg, transparent 36%, color-mix(in srgb, var(--glow-a) 35%, transparent) 45%, var(--glow-b) 50%, transparent 55% 100%);
+  background-size: 300% 100%;
+  animation: dsvGlowScan 3s linear infinite;
+}
+.dsv-sideGlow--dash {
+  background: repeating-conic-gradient(from var(--dsv-glow-angle), var(--glow-a) 0deg 7deg, transparent 7deg 17deg);
+  animation: dsvGlowSpin 3s linear infinite;
+}
+@keyframes dsvGlowSpin {
+  to { --dsv-glow-angle: 360deg; }
+}
+@keyframes dsvGlowComet {
+  from { background-position: 170% 0; }
+  to { background-position: -120% 0; }
+}
+@keyframes dsvGlowScan {
+  from { background-position: 180% 0; }
+  to { background-position: -80% 0; }
 }
 @keyframes dsvGlowMarquee {
   from { background-position: 160% 0; }
@@ -984,7 +1023,8 @@ export const STYLES = `
   color: var(--dsw-alias-label-tertiary);
 }
 .dsv-glowChoices {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 6px;
 }
 .dsv-glowChoice {

@@ -156,7 +156,13 @@ export function SidebarWorkspacePane({
 }) {
   const prefs = usePrefs();
   const glowFor = (row) =>
-    row.status === 'running' ? prefs.glowRunning : row.status === 'pending' ? prefs.glowPending : 'off';
+    row.status === 'running'
+      ? prefs.glowRunning
+      : row.status === 'pending'
+        ? prefs.glowPending
+        : row.status === 'done'
+          ? prefs.glowDone
+          : 'off';
   const focusGroup = focusGroupById(prefs);
   const sessions = useSessions((state) => state);
   const statuses = useSessionStatus((state) => state);

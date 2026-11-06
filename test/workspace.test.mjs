@@ -34,6 +34,7 @@ test('preferences default to session mode and clamp invalid input', () => {
   assert.equal(getPrefs().mode, 'session');
   assert.equal(getPrefs().glowRunning, 'off');
   assert.equal(getPrefs().glowPending, 'off');
+  assert.equal(getPrefs().glowDone, 'off');
   assert.equal(getPrefs().activeLimit, 5);
   assert.deepEqual({ ...DEFAULT_PREFS.manualOrder }, {});
 
@@ -53,6 +54,7 @@ test('preferences default to session mode and clamp invalid input', () => {
   assert.equal(getPrefs().showActive, true);
   assert.equal(getPrefs().glowRunning, 'off');
   assert.equal(getPrefs().glowPending, 'off');
+  assert.equal(getPrefs().glowDone, 'off');
   assert.equal(getPrefs().recentLimit, 5);
   assert.equal(getPrefs().showTimes, true);
   setPrefs({
@@ -74,12 +76,15 @@ test('preferences default to session mode and clamp invalid input', () => {
   assert.equal(getPrefs().recentLimit, 5);
   assert.equal(getPrefs().showTimes, false);
   assert.equal(getPrefs().compact, true);
-  setPrefs({ glowRunning: 'marquee', glowPending: 'aurora' });
+  setPrefs({ glowRunning: 'marquee', glowPending: 'aurora', glowDone: 'scan' });
   assert.equal(getPrefs().glowRunning, 'marquee');
   assert.equal(getPrefs().glowPending, 'aurora');
-  setPrefs({ glowRunning: 'bogus', glowPending: 'nope' });
+  assert.equal(getPrefs().glowDone, 'scan');
+  setPrefs({ glowRunning: 'bogus', glowPending: 'nope', glowDone: 'nope' });
   assert.equal(getPrefs().glowRunning, 'off');
   assert.equal(getPrefs().glowPending, 'off');
+  assert.equal(getPrefs().glowDone, 'off');
+  assert.equal(getPrefs().glowDone, 'off');
   assert.deepEqual(getPrefs().collapsedGroups, ['w1', 'w2']);
 
   resetPrefs();
