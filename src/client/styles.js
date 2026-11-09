@@ -1048,25 +1048,29 @@ export const STYLES = `
   background: color-mix(in srgb, var(--dsw-alias-state-business-primary) 14%, transparent);
 }
 
-.dsv-sideGroupBar {
-  display: flex;
-  justify-content: flex-end;
-  padding: 2px 4px 4px 28px;
-}
-.dsv-sideGroupAll {
-  height: 22px;
-  padding: 0 9px;
+.dsv-sideGroupIcon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin-left: auto;
   border: 1px solid var(--dsw-alias-border-l3);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 11px;
-  line-height: 20px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--dsw-alias-interactive-bg-hover) 75%, transparent);
+  color: var(--dsw-alias-label-secondary);
   cursor: pointer;
 }
-.dsv-sideGroupAll:hover {
+.dsv-sideGroupIcon:hover {
   color: var(--dsw-alias-label-primary);
+  border-color: var(--dsw-alias-border-l4);
   background: var(--dsw-alias-interactive-bg-hover);
+}
+.dsv-sideGroupIcon[data-collapsed="true"] {
+  color: var(--dsw-alias-state-business-primary);
+  border-color: color-mix(in srgb, var(--dsw-alias-state-business-primary) 45%, transparent);
+  background: color-mix(in srgb, var(--dsw-alias-state-business-primary) 12%, transparent);
 }
 
 .dsv-sideRow {

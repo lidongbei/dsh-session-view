@@ -32,22 +32,7 @@ import { addTrashIds, getTrashIds, refreshTrash, subscribeTrash } from './trash-
 import { ConfirmDialog, Dialog, PromptDialog } from './dialog.jsx';
 import { FocusBar, FocusDialog, FocusMembersDialog, groupLabel, memberSummary } from './focus-mode.jsx';
 import { STYLES } from './styles.js';
-import {
-  ActivityIcon,
-  ArchiveIcon,
-  ChevronDownIcon,
-  ChevronRightIcon,
-  ClockIcon,
-  FolderIcon,
-  LayoutIcon,
-  PinIcon,
-  PlusIcon,
-  RestoreIcon,
-  SearchIcon,
-  SessionViewIcon,
-  TargetIcon,
-  TrashIcon,
-} from './icons.jsx';
+import { ActivityIcon, ArchiveIcon, ChevronDownIcon, ChevronRightIcon, ClockIcon, FolderIcon, LayoutIcon, PinIcon, PlusIcon, RestoreIcon, SearchIcon, SessionViewIcon, TargetIcon, TrashIcon, ChevronsUpIcon, ChevronsDownIcon } from './icons.jsx';
 
 const ALL = '__all';
 
@@ -1226,19 +1211,20 @@ export function SidebarWorkspacePane({
                   count: groups.length,
                   icon: <LayoutIcon size={12} />,
                   collapsed: workspacesCollapsed,
-                })}
-                {!workspacesCollapsed && workspaceGroupKeys.length > 0 && (
-                  <div className="dsv-sideGroupBar">
+                  extra: workspaceGroupKeys.length > 0 ? (
                     <button
                       type="button"
-                      className="dsv-sideGroupAll"
+                      className="dsv-sideGroupIcon"
                       aria-expanded={!allWorkspacesCollapsed}
+                      aria-label={allWorkspacesCollapsed ? t('action.expandAll') : t('action.collapseAll')}
+                      title={allWorkspacesCollapsed ? t('action.expandAll') : t('action.collapseAll')}
+                      data-collapsed={allWorkspacesCollapsed || undefined}
                       onClick={toggleAllWorkspaces}
                     >
-                      {allWorkspacesCollapsed ? t('action.expandAll') : t('action.collapseAll')}
+                      {allWorkspacesCollapsed ? <ChevronsDownIcon size={14} /> : <ChevronsUpIcon size={14} />}
                     </button>
-                  </div>
-                )}
+                  ) : null,
+                })}
                 {!workspacesCollapsed && groups.map((group, index) => renderGroup(group, index))}
               </section>
             )}
