@@ -34,6 +34,12 @@ export const DEFAULT_PREFS = Object.freeze({
   focusGroupId: '',
   focusExpanded: Object.freeze([]),
   focusEnabled: true,
+  /**
+   * Workspaces the user explicitly hid from the left session view. Storing the
+   * hidden ids (instead of a visible allow-list) keeps every newly added
+   * workspace visible by default.
+   */
+  hiddenWorkspaceIds: Object.freeze([]),
 });
 
 const MODES = new Set(['session', 'native']);
@@ -80,6 +86,9 @@ function sanitize(raw) {
   const focusExpanded = Array.isArray(value.focusExpanded)
     ? [...new Set(value.focusExpanded.filter((id) => typeof id === 'string' && focusGroups.some((group) => group.id === id)))]
     : [];
+  const hiddenWorkspaceIds = Array.isArray(value.hiddenWorkspaceIds)
+    ? [...new Set(value.hiddenWorkspaceIds.filter((id) => typeof id === 'string' && id))]
+    : [];
   return {
     mode: MODES.has(value.mode) ? value.mode : DEFAULT_PREFS.mode,
     activeLimit: clampLimit(value.activeLimit, DEFAULT_PREFS.activeLimit),
@@ -106,6 +115,7 @@ function sanitize(raw) {
     focusGroupId,
     focusExpanded,
     focusEnabled: value.focusEnabled !== false,
+    hiddenWorkspaceIds,
   };
 }
 
@@ -118,6 +128,7 @@ function fresh() {
     focusGroupId: '',
     focusExpanded: [],
     focusEnabled: true,
+    hiddenWorkspaceIds: [],
   };
 }
 

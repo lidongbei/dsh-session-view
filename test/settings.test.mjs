@@ -19,7 +19,18 @@ const t = (key, params) => {
   return params ? template.replace(/\\\\{(\\\\w+)\\\\}/g, (match, name) => (name in params ? String(params[name]) : match)) : template;
 };
 resetPrefs();
-globalThis.__DSV_SETTINGS_HTML = renderToStaticMarkup(React.createElement(SessionViewSettings, { t }));
+const workspaces = {
+  items: [
+    { workspaceId: 'w1', title: 'App', path: 'C:/work/app' },
+    { workspaceId: 'w2', title: 'Docs', path: 'D:/docs' },
+  ],
+};
+globalThis.__DSV_SETTINGS_HTML = renderToStaticMarkup(
+  React.createElement(SessionViewSettings, {
+    t,
+    useWorkspaces: (selector) => selector(workspaces),
+  }),
+);
 resetPrefs();
 `;
 
@@ -49,6 +60,9 @@ test('session view settings expose the workspace group switch and no layout opti
     assert.ok(!html.includes('布局'), 'layout option must be gone');
     assert.ok(html.includes('活跃会话显示个数'), 'missing active limit');
     assert.ok(html.includes('最近会话显示个数'), 'missing recent limit');
+    assert.ok(html.includes('工作区筛选'), 'missing workspace filter group');
+    assert.ok(html.includes('C:/work/app') && html.includes('D:/docs'), 'workspace filter must show workspace paths');
+    assert.equal((html.match(/aria-label="在左侧显示"/g) || []).length, 2, 'expected one visibility switch per workspace');
     assert.ok(html.includes('运行中会话') && html.includes('待处理会话') && html.includes('已完成未读'), 'missing per-status glow cards');
     assert.equal((html.match(/class="dsv-glowChoice"/g) || []).length, 21, 'expected 3 cards x 7 effects');
     assert.ok(html.includes('跑马灯') && html.includes('极光流光') && html.includes('呼吸脉冲'), 'missing glow options');

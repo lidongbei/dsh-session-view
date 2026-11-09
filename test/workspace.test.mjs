@@ -4,6 +4,8 @@ import {
   activeRows,
   applyManualOrder,
   buildCandidates,
+  filterHiddenRows,
+  filterHiddenWorkspaces,
   groupByWorkspace,
   limitRows,
   moveId,
@@ -217,4 +219,40 @@ test('watermarkLimit raises the fold to the last active or unread row', () => {
   assert.equal(watermarkLimit(rows, 0), 0);
   const long = Array.from({ length: 60 }, (_, index) => row(`x${index}`, index === 25 ? { status: 'pending' } : {}));
   assert.equal(watermarkLimit(long, 5), 26);
+});
+
+test('hidden workspace ids only remove the selected workspaces', () => {
+  const workspaces = {
+    items: [workspace('a', 'C:\\work'), workspace('b', 'C:\\work\\b'), workspace('c', 'D:\\fresh')],
+  };
+  assert.equal(filterHiddenWorkspaces(workspaces, undefined), workspaces);
+  assert.equal(filterHiddenWorkspaces(workspaces, []), workspaces);
+  assert.deepEqual(
+    filterHiddenWorkspaces(workspaces, ['b']).items.map((item) => item.workspaceId),
+    ['a', 'c'],
+  );
+  // A workspace that is not in the hidden list is visible, so newly created
+  // workspaces show up without any extra state.
+  assert.deepEqual(
+    filterHiddenWorkspaces(workspaces, ['a', 'missing']).items.map((item) => item.workspaceId),
+    ['b', 'c'],
+  );
+});
+
+test('rows from hidden workspaces are dropped instead of falling into the ungrouped bucket', () => {
+  const rows = [
+    row('one', { workspace: { workspaceId: 'a' } }),
+    row('two', { workspace: { workspaceId: 'b' } }),
+    row('three', { workspace: null }),
+  ];
+  assert.equal(filterHiddenRows(rows, undefined), rows);
+  assert.equal(filterHiddenRows(rows, []), rows);
+  assert.deepEqual(
+    filterHiddenRows(rows, ['a']).map((item) => item.session.id),
+    ['two', 'three'],
+  );
+  assert.deepEqual(
+    filterHiddenRows(rows, ['a', 'b', 'missing']).map((item) => item.session.id),
+    ['three'],
+  );
 });

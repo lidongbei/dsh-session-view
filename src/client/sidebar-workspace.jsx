@@ -9,6 +9,8 @@ import {
   filterRows,
   filterRowsByFocus,
   filterRowsByWorkspaceIds,
+  filterHiddenRows,
+  filterHiddenWorkspaces,
   focusGroupById,
   focusIncludesPath,
   formatRelativeTime,
@@ -245,8 +247,19 @@ export function SidebarWorkspacePane({
     // rows are rendered too.
     const rows = annotateRows(built, statuses);
     const visible = prefs.showSubagents ? rows : rows.filter((row) => row.session.origin !== 'subagent');
-    return filterRowsByFocus(visible, prefs).filter((row) => !trashIds.has(row.session.id));
-  }, [sessions, statuses, workspaces, prefs.showSubagents, prefs.focusGroups, prefs.focusGroupId, trashIds]);
+    return filterHiddenRows(filterRowsByFocus(visible, prefs), prefs.hiddenWorkspaceIds).filter(
+      (row) => !trashIds.has(row.session.id),
+    );
+  }, [
+    sessions,
+    statuses,
+    workspaces,
+    prefs.showSubagents,
+    prefs.focusGroups,
+    prefs.focusGroupId,
+    prefs.hiddenWorkspaceIds,
+    trashIds,
+  ]);
 
   const pinnedSet = useMemo(() => new Set(workspaces?.pinnedSessionIds ?? []), [workspaces?.pinnedSessionIds]);
   const archivedSet = useMemo(
@@ -254,8 +267,12 @@ export function SidebarWorkspacePane({
     [workspaces?.archivedSessionIds],
   );
   const focusWorkspaces = useMemo(
-    () => restrictWorkspaces(workspaces, prefs),
-    [workspaces, prefs.focusGroups, prefs.focusGroupId],
+    () =>
+      filterHiddenWorkspaces(
+        restrictWorkspaces(workspaces, prefs),
+        prefs.hiddenWorkspaceIds,
+      ),
+    [workspaces, prefs.focusGroups, prefs.focusGroupId, prefs.hiddenWorkspaceIds],
   );
 
   const sections = useMemo(() => splitSections(annotated, workspaces?.pinnedSessionIds), [annotated, workspaces?.pinnedSessionIds]);

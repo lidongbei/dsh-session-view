@@ -603,6 +603,34 @@ export function restrictWorkspaces(workspaces, prefs) {
 }
 
 /**
+ * Drop workspaces the user hid from the left session view.
+ *
+ * Hidden ids are authoritative only for the sidebar: the management panel and
+ * the settings filter keep every workspace so a hidden one can be turned back
+ * on. A workspace that is not listed is visible, which makes newly added
+ * workspaces show up by default.
+ */
+export function filterHiddenWorkspaces(workspaces, hiddenWorkspaceIds) {
+  const hidden = new Set(
+    Array.isArray(hiddenWorkspaceIds) ? hiddenWorkspaceIds.filter((id) => typeof id === 'string' && id) : [],
+  );
+  if (hidden.size === 0) return workspaces;
+  return {
+    ...workspaces,
+    items: (workspaces?.items ?? []).filter((workspace) => workspace && !hidden.has(workspace.workspaceId)),
+  };
+}
+
+/** Drop rows that belong to a hidden workspace so their sessions cannot fall into the ungrouped bucket. */
+export function filterHiddenRows(rows, hiddenWorkspaceIds) {
+  const hidden = new Set(
+    Array.isArray(hiddenWorkspaceIds) ? hiddenWorkspaceIds.filter((id) => typeof id === 'string' && id) : [],
+  );
+  if (hidden.size === 0) return rows;
+  return rows.filter((row) => !hidden.has(row?.workspace?.workspaceId));
+}
+
+/**
  * Path-based variant for rows that are not attached to a workspace yet, such as
  * search hits for sessions outside the current snapshot.
  */

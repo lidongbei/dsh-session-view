@@ -57,8 +57,24 @@ function Group({ title, description, children }) {
  * settings. `prefs.js` keeps the same localStorage key, so the sidebar reacts
  * immediately to a change made in this section.
  */
-export function SessionViewSettings({ t }) {
+export function SessionViewSettings({ t, useWorkspaces }) {
   const prefs = useSyncExternalStore(subscribePrefs, getPrefs, getPrefs);
+  const workspaces = useWorkspaces ? useWorkspaces((snapshot) => snapshot) : null;
+  const hiddenWorkspaceIds = prefs.hiddenWorkspaceIds ?? [];
+  const hiddenWorkspaceSet = new Set(hiddenWorkspaceIds);
+  const workspaceItems = [...(workspaces?.items ?? [])].sort((a, b) =>
+    String(a?.path ?? a?.title ?? '').localeCompare(String(b?.path ?? b?.title ?? ''), 'zh'),
+  );
+
+  const toggleWorkspaceVisibility = (workspaceId) => {
+    if (!workspaceId) return;
+    const hidden = hiddenWorkspaceSet.has(workspaceId);
+    setPrefs({
+      hiddenWorkspaceIds: hidden
+        ? hiddenWorkspaceIds.filter((id) => id !== workspaceId)
+        : [...hiddenWorkspaceIds, workspaceId],
+    });
+  };
 
   return (
     <section className="dsv-settings dsv-settingsPage" aria-label={t('settings.nav')}>
@@ -115,6 +131,42 @@ export function SessionViewSettings({ t }) {
           value={prefs.showWorkspaces}
           onChange={(value) => setPrefs({ showWorkspaces: value })}
         />
+      </Group>
+
+      <Group title={t('settings.group.workspaceFilter')} description={t('settings.workspaceFilterHint')}>
+        {workspaceItems.length === 0 ? (
+          <p className="dsv-workspaceFilterEmpty">{t('settings.workspaceFilterEmpty')}</p>
+        ) : (
+          workspaceItems.map((workspace) => {
+            const workspaceId = workspace?.workspaceId;
+            const path = String(workspace?.path ?? '');
+            const title = String(workspace?.title || path || workspaceId || '');
+            const visible = !hiddenWorkspaceSet.has(workspaceId);
+            return (
+              <div className="dsv-workspaceFilterRow" key={workspaceId ?? path}>
+                <div className="dsv-workspaceFilterText">
+                  <span className="dsv-workspaceFilterName" title={title}>{title}</span>
+                  {path ? <code className="dsv-workspaceFilterPath" title={path}>{path}</code> : null}
+                </div>
+                <input
+                  className="dsv-switch"
+                  type="checkbox"
+                  role="switch"
+                  checked={visible}
+                  aria-label={t('settings.workspaceShow')}
+                  onChange={() => toggleWorkspaceVisibility(workspaceId)}
+                />
+              </div>
+            );
+          })
+        )}
+        {hiddenWorkspaceIds.length > 0 ? (
+          <div className="dsv-workspaceFilterFoot">
+            <button type="button" className="dsv-btn" onClick={() => setPrefs({ hiddenWorkspaceIds: [] })}>
+              {t('settings.workspaceFilterReset')}
+            </button>
+          </div>
+        ) : null}
       </Group>
 
       <Group title={t('settings.group.limits')} description={t('settings.desc.limits')}>
