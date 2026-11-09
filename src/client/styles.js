@@ -1624,7 +1624,68 @@ body.dsv-dragging * { -webkit-user-select: none !important; user-select: none !i
 }
 .dsv-workspaceFilterEmpty { margin: 0; padding: 14px 16px; border-top: 1px solid var(--dsw-alias-border-l3); color: var(--dsw-alias-label-tertiary); font-size: 12px; }
 .dsv-workspaceFilterFoot { display: flex; justify-content: flex-end; padding: 10px 16px; border-top: 1px solid var(--dsw-alias-border-l3); }
+/* Workspace visibility menu opened from the "工作区会话" header / workspace context menu. */
+.dsv-workspaceFilterMenu {
+  width: 320px;
+  max-height: min(70vh, 460px);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+.dsv-wsFilterHead {
+  padding: 6px 8px 4px;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--dsw-alias-label-tertiary);
+}
+.dsv-wsFilterList {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-height: 0;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.dsv-wsFilterRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.dsv-wsFilterRow:hover { background: var(--dsw-alias-interactive-bg-hover); }
+.dsv-wsFilterText { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
+.dsv-wsFilterName {
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dsv-wsFilterPath {
+  font-size: 10px;
+  line-height: 14px;
+  color: var(--dsw-alias-label-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dsv-wsFilterEmpty { margin: 0; padding: 8px; font-size: 12px; color: var(--dsw-alias-label-tertiary); }
+.dsv-wsFilterReset {
+  height: 30px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+.dsv-wsFilterReset:hover { background: var(--dsw-alias-interactive-bg-hover); color: var(--dsw-alias-label-primary); }
+.dsv-menuDivider { height: 1px; margin: 4px 6px; background: var(--dsw-alias-border-l4); }
+
 `;
 
 export const BOARD_ONLY_STYLES = '';
-

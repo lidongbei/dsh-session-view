@@ -262,6 +262,23 @@ export function SidebarWorkspacePane({
   ]);
 
   const pinnedSet = useMemo(() => new Set(workspaces?.pinnedSessionIds ?? []), [workspaces?.pinnedSessionIds]);
+  const hiddenWorkspaceIds = prefs.hiddenWorkspaceIds ?? [];
+  const hiddenWorkspaceSet = useMemo(() => new Set(hiddenWorkspaceIds), [hiddenWorkspaceIds]);
+  const filterWorkspaceItems = useMemo(
+    () =>
+      [...(workspaces?.items ?? [])].sort((a, b) =>
+        String(a?.path ?? a?.title ?? '').localeCompare(String(b?.path ?? b?.title ?? ''), 'zh'),
+      ),
+    [workspaces?.items],
+  );
+  const toggleWorkspaceVisibility = (workspaceId) => {
+    if (!workspaceId) return;
+    setPrefs({
+      hiddenWorkspaceIds: hiddenWorkspaceSet.has(workspaceId)
+        ? hiddenWorkspaceIds.filter((id) => id !== workspaceId)
+        : [...hiddenWorkspaceIds, workspaceId],
+    });
+  };
   const archivedSet = useMemo(
     () => new Set(workspaces?.archivedSessionIds ?? []),
     [workspaces?.archivedSessionIds],
@@ -588,6 +605,53 @@ export function SidebarWorkspacePane({
       <button type="button" role="menuitem" className="dsv-danger" onClick={() => { closeMenus(); setDialog({ kind: 'deleteWorkspace', workspace }); }}>
         {t('action.deleteWorkspace')}
       </button>
+      <span className="dsv-menuDivider" role="separator" />
+      <button
+        type="button"
+        role="menuitem"
+        onClick={() => setContextMenu({ kind: 'workspaceFilter', x: contextMenu?.x ?? 0, y: contextMenu?.y ?? 0 })}
+      >
+        {t('side.workspaceFilter')}
+      </button>
+    </>
+  );
+
+  const contextWorkspaceFilterItems = () => (
+    <>
+      <div className="dsv-wsFilterHead">{t('side.workspaceFilter')}</div>
+      {filterWorkspaceItems.length === 0 ? (
+        <p className="dsv-wsFilterEmpty">{t('settings.workspaceFilterEmpty')}</p>
+      ) : (
+        <div className="dsv-wsFilterList">
+          {filterWorkspaceItems.map((workspace) => {
+            const workspaceId = workspace?.workspaceId;
+            const path = String(workspace?.path ?? '');
+            const title = String(workspace?.title || path || workspaceId || '');
+            const visible = !hiddenWorkspaceSet.has(workspaceId);
+            return (
+              <label className="dsv-wsFilterRow" key={workspaceId ?? path}>
+                <span className="dsv-wsFilterText">
+                  <span className="dsv-wsFilterName" title={title}>{title}</span>
+                  {path ? <code className="dsv-wsFilterPath" title={path}>{path}</code> : null}
+                </span>
+                <input
+                  className="dsv-switch"
+                  type="checkbox"
+                  role="switch"
+                  checked={visible}
+                  aria-label={t('settings.workspaceShow')}
+                  onChange={() => toggleWorkspaceVisibility(workspaceId)}
+                />
+              </label>
+            );
+          })}
+        </div>
+      )}
+      {hiddenWorkspaceIds.length > 0 ? (
+        <button type="button" className="dsv-wsFilterReset" onClick={() => setPrefs({ hiddenWorkspaceIds: [] })}>
+          {t('settings.workspaceFilterReset')}
+        </button>
+      ) : null}
     </>
   );
 
@@ -640,14 +704,16 @@ export function SidebarWorkspacePane({
     : null;
   const contextItems = contextRow
     ? contextSessionItems(contextRow, contextMenu.archived)
-    : contextWorkspace
-      ? contextWorkspaceItems(contextWorkspace)
-      : contextFocus
-        ? contextFocusItems(contextFocus)
-        : null;
+    : contextMenu?.kind === 'workspaceFilter'
+      ? contextWorkspaceFilterItems()
+      : contextWorkspace
+        ? contextWorkspaceItems(contextWorkspace)
+        : contextFocus
+          ? contextFocusItems(contextFocus)
+          : null;
 
-  const sectionHead = ({ key, label, count, icon = null, collapsed, extra = null }) => (
-    <div className="dsv-sideGroupHead dsv-sideSectionHead">
+  const sectionHead = ({ key, label, count, icon = null, collapsed, extra = null, onContextMenu = undefined }) => (
+    <div className="dsv-sideGroupHead dsv-sideSectionHead" onContextMenu={onContextMenu}>
       <button
         type="button"
         className="dsv-sideGroupToggle"
@@ -1228,6 +1294,12 @@ export function SidebarWorkspacePane({
                   count: groups.length,
                   icon: <LayoutIcon size={12} />,
                   collapsed: workspacesCollapsed,
+                  onContextMenu: (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setMenu(null);
+                    setContextMenu({ kind: 'workspaceFilter', x: event.clientX, y: event.clientY });
+                  },
                   extra: workspaceGroupKeys.length > 0 ? (
                     <button
                       type="button"
@@ -1421,11 +1493,11 @@ export function SidebarWorkspacePane({
 
       {contextMenu && contextItems && createPortal(
         <div
-          className="dsv-menu dsv-contextMenu"
+          className={`dsv-menu dsv-contextMenu${contextMenu.kind === 'workspaceFilter' ? ' dsv-workspaceFilterMenu' : ''}`}
           role="menu"
           style={{
-            left: Math.min(contextMenu.x, (globalThis.innerWidth ?? 1200) - 220),
-            top: Math.min(contextMenu.y, (globalThis.innerHeight ?? 800) - 280),
+            left: Math.min(contextMenu.x, (globalThis.innerWidth ?? 1200) - 320),
+            top: Math.min(contextMenu.y, (globalThis.innerHeight ?? 800) - (contextMenu.kind === 'workspaceFilter' ? 420 : 280)),
           }}
           onPointerDown={(event) => event.stopPropagation()}
         >
