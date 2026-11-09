@@ -118,6 +118,7 @@ test('SidebarWorkspacePane renders pinned and a limited active group', async () 
     const empty = globalThis.__DSV_PANE_HTML_EMPTY;
     assert.ok(empty.includes('aria-label="活跃会话"'), 'empty active group heading must stay visible');
     assert.ok(empty.includes('aria-label="最近会话"'), 'empty recent group heading must stay visible');
+    assert.ok(html.includes('收起全部'), 'workspace group collapse-all button missing');
     assert.ok(!html.includes('class="dsv-sideGlow'), 'glow must default to off');
     const glow = globalThis.__DSV_PANE_HTML_GLOW;
     assert.ok(glow.includes('dsv-sideGlow--marquee'), 'marquee glow missing');

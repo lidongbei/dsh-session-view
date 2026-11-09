@@ -1048,6 +1048,27 @@ export const STYLES = `
   background: color-mix(in srgb, var(--dsw-alias-state-business-primary) 14%, transparent);
 }
 
+.dsv-sideGroupBar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 2px 4px 4px 28px;
+}
+.dsv-sideGroupAll {
+  height: 22px;
+  padding: 0 9px;
+  border: 1px solid var(--dsw-alias-border-l3);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  line-height: 20px;
+  cursor: pointer;
+}
+.dsv-sideGroupAll:hover {
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
 .dsv-sideRow {
   position: relative;
   display: flex;

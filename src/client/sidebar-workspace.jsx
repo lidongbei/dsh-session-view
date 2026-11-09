@@ -879,6 +879,18 @@ export function SidebarWorkspacePane({
   const recentCollapsed = collapsedGroups.has('__recent');
   const pinnedCollapsed = collapsedGroups.has('__pinned');
   const workspacesCollapsed = collapsedGroups.has('__workspaces');
+  const workspaceGroupKeys = groups.map((group) => group.key);
+  const allWorkspacesCollapsed = workspaceGroupKeys.length > 0
+    && workspaceGroupKeys.every((key) => collapsedGroups.has(key));
+  const toggleAllWorkspaces = () => {
+    const next = new Set(collapsedGroups);
+    if (allWorkspacesCollapsed) {
+      for (const key of workspaceGroupKeys) next.delete(key);
+    } else {
+      for (const key of workspaceGroupKeys) next.add(key);
+    }
+    setPrefs({ collapsedGroups: [...next] });
+  };
   const focusCollapsed = collapsedGroups.has('__focus');
 
   useEffect(() => {
@@ -1215,6 +1227,18 @@ export function SidebarWorkspacePane({
                   icon: <LayoutIcon size={12} />,
                   collapsed: workspacesCollapsed,
                 })}
+                {!workspacesCollapsed && workspaceGroupKeys.length > 0 && (
+                  <div className="dsv-sideGroupBar">
+                    <button
+                      type="button"
+                      className="dsv-sideGroupAll"
+                      aria-expanded={!allWorkspacesCollapsed}
+                      onClick={toggleAllWorkspaces}
+                    >
+                      {allWorkspacesCollapsed ? t('action.expandAll') : t('action.collapseAll')}
+                    </button>
+                  </div>
+                )}
                 {!workspacesCollapsed && groups.map((group, index) => renderGroup(group, index))}
               </section>
             )}
