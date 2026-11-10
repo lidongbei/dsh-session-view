@@ -590,18 +590,18 @@ export function SidebarWorkspacePane({
         {t('action.deleteWorkspace')}
       </button>
       <span className="dsv-menuDivider" role="separator" />
-      {contextWorkspaceFilterEntry()}
+      {contextWorkspaceFilterEntry(workspace.workspaceId)}
     </>
   );
 
-  const openWorkspaceFilter = () => {
+  const openWorkspaceFilter = (workspaceId = null) => {
     closeMenus();
-    requestPanelIntent('workspaceFilter');
+    requestPanelIntent({ kind: 'workspaceFilter', workspaceId });
     openPanel?.();
   };
 
-  const contextWorkspaceFilterEntry = () => (
-    <button type="button" role="menuitem" onClick={openWorkspaceFilter}>
+  const contextWorkspaceFilterEntry = (workspaceId = null) => (
+    <button type="button" role="menuitem" onClick={() => openWorkspaceFilter(workspaceId)}>
       {t('side.workspaceFilter')}
     </button>
   );

@@ -1634,11 +1634,26 @@ body.dsv-dragging * { -webkit-user-select: none !important; user-select: none !i
   overflow: hidden;
 }
 .dsv-wsFilterHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   padding: 6px 8px 4px;
   font-size: 11px;
   line-height: 16px;
   color: var(--dsw-alias-label-tertiary);
 }
+.dsv-wsFilterClear {
+  height: 22px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-alias-state-business-primary);
+  font: inherit;
+  cursor: pointer;
+}
+.dsv-wsFilterClear:hover { background: var(--dsw-alias-interactive-bg-hover); }
 .dsv-wsFilterList {
   display: flex;
   flex-direction: column;
@@ -1653,10 +1668,21 @@ body.dsv-dragging * { -webkit-user-select: none !important; user-select: none !i
   gap: 8px;
   padding: 6px 8px;
   border-radius: 8px;
-  cursor: pointer;
 }
 .dsv-wsFilterRow:hover { background: var(--dsw-alias-interactive-bg-hover); }
+.dsv-wsFilterRow[data-active="true"] {
+  background: color-mix(in srgb, var(--dsw-alias-state-business-primary) 16%, transparent);
+}
+.dsv-wsFilterRow[data-active="true"] .dsv-wsFilterName { color: var(--dsw-alias-state-business-primary); }
 .dsv-wsFilterText { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
+.dsv-wsFilterApply {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
 .dsv-wsFilterName {
   font-size: 13px;
   line-height: 18px;

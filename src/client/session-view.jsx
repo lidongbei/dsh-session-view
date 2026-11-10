@@ -90,8 +90,9 @@ export function SessionView({
   const panelIntent = useSyncExternalStore(subscribePanelIntent, getPanelIntent, () => null);
 
   useEffect(() => {
-    if (panelIntent !== 'workspaceFilter') return;
+    if (!panelIntent || panelIntent.kind !== 'workspaceFilter') return;
     setWsFilterOpen(true);
+    if (panelIntent.workspaceId) setWorkspaceId(panelIntent.workspaceId);
     consumePanelIntent();
   }, [panelIntent]);
 
@@ -190,21 +191,27 @@ export function SessionView({
     () => splitSections(activeRows, workspaces?.pinnedSessionIds),
     [activeRows, workspaces?.pinnedSessionIds],
   );
-  const archived = useMemo(() => {
+  const archivedAll = useMemo(() => {
     const all = archivedRows(sessions, workspaces?.archivedSessionIds, workspaces)
       .filter((row) => !trashedIds.has(row.session.id) && !staleIds.has(row.session.id));
-    const rows = prefs.showSubagents ? all : all.filter((row) => row.session.origin !== 'subagent');
-    return rows.filter((row) => matchesQuery(row, query));
-  }, [sessions, workspaces?.archivedSessionIds, query, prefs.showSubagents, trashedIds, staleIds]);
-  const trashed = useMemo(() => {
+    return prefs.showSubagents ? all : all.filter((row) => row.session.origin !== 'subagent');
+  }, [sessions, workspaces, prefs.showSubagents, trashedIds, staleIds]);
+  const archived = useMemo(
+    () => filterRows(archivedAll, { query, workspaceId, status: ALL }),
+    [archivedAll, query, workspaceId],
+  );
+  const trashedAll = useMemo(() => {
     const all = trashRows(trash.items, sessions?.byId, workspaces);
-    const rows = prefs.showSubagents ? all : all.filter((row) => row.session.origin !== 'subagent');
-    return rows.filter((row) => matchesQuery(row, query) && !staleIds.has(row.session.id));
-  }, [trash.items, sessions?.byId, workspaces, query, prefs.showSubagents, staleIds]);
+    return prefs.showSubagents ? all : all.filter((row) => row.session.origin !== 'subagent');
+  }, [trash.items, sessions?.byId, workspaces, prefs.showSubagents]);
+  const trashed = useMemo(
+    () => filterRows(trashedAll.filter((row) => !staleIds.has(row.session.id)), { query, workspaceId, status: ALL }),
+    [trashedAll, query, workspaceId, staleIds],
+  );
 
   const workspaceOptions = useMemo(() => {
     const byWorkspace = new Map();
-    const source = tab === 'archived' ? archived : tab === 'trash' ? trashed : annotated;
+    const source = tab === 'archived' ? archivedAll : tab === 'trash' ? trashedAll : annotated;
     for (const row of source) {
       const workspace = row.workspace;
       if (!workspace?.workspaceId) continue;
@@ -215,7 +222,7 @@ export function SessionView({
     return Array.from(byWorkspace, ([id, label]) => ({ id, label })).sort((a, b) =>
       a.label.localeCompare(b.label),
     );
-  }, [annotated, archived, trashed, tab]);
+  }, [annotated, archivedAll, trashedAll, tab]);
 
   const pinnedSet = useMemo(
     () => new Set(workspaces?.pinnedSessionIds ?? []),
@@ -858,7 +865,14 @@ export function SessionView({
                     onChange={(event) => setPrefs({ showWorkspaces: event.target.checked })}
                   />
                 </label>
-                <div className="dsv-wsFilterHead">{t('settings.workspaceFilterHint')}</div>
+                <div className="dsv-wsFilterHead">
+                  <span>{t('filter.filterSessions')}</span>
+                  {workspaceId !== ALL ? (
+                    <button type="button" className="dsv-wsFilterClear" onClick={() => setWorkspaceId(ALL)}>
+                      {t('filter.allWorkspaces')}
+                    </button>
+                  ) : null}
+                </div>
                 {filterWorkspaceItems.length === 0 ? (
                   <p className="dsv-wsFilterEmpty">{t('settings.workspaceFilterEmpty')}</p>
                 ) : (
@@ -868,11 +882,24 @@ export function SessionView({
                       const path = String(workspace?.path ?? '');
                       const title = String(workspace?.title || path || id || '');
                       return (
-                        <label className="dsv-wsFilterRow" key={id ?? path}>
-                          <span className="dsv-wsFilterText">
+                        <div
+                          className="dsv-wsFilterRow"
+                          key={id ?? path}
+                          data-active={workspaceId === id ? 'true' : 'false'}
+                        >
+                          <button
+                            type="button"
+                            className="dsv-wsFilterText dsv-wsFilterApply"
+                            aria-pressed={workspaceId === id}
+                            title={t('filter.applyWorkspace')}
+                            onClick={() => {
+                              setWorkspaceId(id);
+                              setWsFilterOpen(false);
+                            }}
+                          >
                             <span className="dsv-wsFilterName" title={title}>{title}</span>
                             {path ? <code className="dsv-wsFilterPath" title={path}>{path}</code> : null}
-                          </span>
+                          </button>
                           <input
                             className="dsv-switch"
                             type="checkbox"
@@ -881,7 +908,7 @@ export function SessionView({
                             aria-label={t('settings.workspaceShow')}
                             onChange={() => toggleWorkspaceVisibility(id)}
                           />
-                        </label>
+                        </div>
                       );
                     })}
                   </div>
