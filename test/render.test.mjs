@@ -85,6 +85,7 @@ test('SessionView renders status colors and hides subagent rows', async () => {
     assert.ok(html.includes('空闲'));
     assert.ok(!html.includes('子会话'), 'subagent tag must not be rendered');
     assert.ok(html.includes('3 个会话'));
+    assert.ok(html.includes('工作区筛选'), 'workspace filter tab must be rendered');
 
     assert.match(html, /data-status="running"/);
     assert.match(html, /data-status="pending"/);

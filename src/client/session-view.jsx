@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import {
   STATUS_LIST,
   annotateRows,
@@ -31,7 +31,7 @@ import {
 } from './icons.jsx';
 
 const ALL = 'all';
-const TABS = ['active', 'archived', 'trash'];
+const TABS = ['active', 'archived', 'trash', 'workspaces'];
 
 const CONFIRM_COPY = {
   archive: { title: 'confirm.archive.title', body: 'confirm.archive.body', tone: 'normal' },
@@ -85,32 +85,14 @@ export function SessionView({
   const [toast, setToast] = useState(null);
   const [trash, setTrash] = useState({ state: 'idle', items: [], error: null });
   const [staleIds, setStaleIds] = useState(() => new Set());
-  const [wsFilterOpen, setWsFilterOpen] = useState(false);
-  const wsFilterRef = useRef(null);
   const panelIntent = useSyncExternalStore(subscribePanelIntent, getPanelIntent, () => null);
 
   useEffect(() => {
     if (!panelIntent || panelIntent.kind !== 'workspaceFilter') return;
-    setWsFilterOpen(true);
+    setTab('workspaces');
     if (panelIntent.workspaceId) setWorkspaceId(panelIntent.workspaceId);
     consumePanelIntent();
   }, [panelIntent]);
-
-  useEffect(() => {
-    if (!wsFilterOpen) return undefined;
-    const onPointerDown = (event) => {
-      if (wsFilterRef.current && !wsFilterRef.current.contains(event.target)) setWsFilterOpen(false);
-    };
-    const onKeyDown = (event) => {
-      if (event.key === 'Escape') setWsFilterOpen(false);
-    };
-    document.addEventListener('pointerdown', onPointerDown);
-    document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown);
-      document.removeEventListener('keydown', onKeyDown);
-    };
-  }, [wsFilterOpen]);
 
   const hiddenWorkspaceIds = prefs.hiddenWorkspaceIds ?? [];
   const hiddenWorkspaceSet = useMemo(() => new Set(hiddenWorkspaceIds), [hiddenWorkspaceIds]);
@@ -230,7 +212,8 @@ export function SessionView({
   );
   const selectedSet = useMemo(() => new Set(selected), [selected]);
 
-  const tabRows = tab === 'active' ? activeRows : tab === 'archived' ? archived : trashed;
+  const tabRows =
+    tab === 'active' ? activeRows : tab === 'archived' ? archived : tab === 'trash' ? trashed : [];
   const tabIds = tabRows.map((row) => row.session.id);
   const allSelected = tabIds.length > 0 && tabIds.every((id) => selectedSet.has(id));
 
@@ -688,7 +671,9 @@ export function SessionView({
   const trashWorkspaceSections = buildWorkspaceSections(trashed);
 
   const sectionList =
-    tab === 'archived'
+    tab === 'workspaces'
+      ? []
+      : tab === 'archived'
       ? groupWorkspaces
         ? archivedWorkspaceSections.map((group) => [group.key, group.title, group.rows, group.path])
         : [['archived', t('tab.archived'), archived]]
@@ -712,6 +697,7 @@ export function SessionView({
     active: annotated.length,
     archived: archived.length,
     trash: trashed.length,
+    workspaces: workspaces?.items?.length ?? 0,
   };
 
   const sectionKeys = sectionList.map(([key]) => key);
@@ -749,7 +735,107 @@ export function SessionView({
     );
   })();
 
-  const empty = tab === 'active' ? activeRows.length === 0 : tab === 'archived' ? archived.length === 0 : trashed.length === 0;
+  const empty =
+    tab === 'workspaces'
+      ? false
+      : tab === 'active'
+        ? activeRows.length === 0
+        : tab === 'archived'
+          ? archived.length === 0
+          : trashed.length === 0;
+
+  const workspaceFilterPage = (
+    <section className="dsv-wsPage" aria-label={t('tab.workspaces')}>
+      <div className="dsv-wsIntro">
+        <h2 className="dsv-wsTitle">{t('workspaceFilter.title')}</h2>
+        <p className="dsv-wsHint">{t('workspaceFilter.hint')}</p>
+      </div>
+      <div className="dsv-wsTools">
+        <label className="dsv-wsShowToggle">
+          <span>{t('settings.showWorkspaces')}</span>
+          <input
+            className="dsv-switch"
+            type="checkbox"
+            role="switch"
+            checked={prefs.showWorkspaces}
+            aria-label={t('settings.showWorkspaces')}
+            onChange={(event) => setPrefs({ showWorkspaces: event.target.checked })}
+          />
+        </label>
+        {hiddenWorkspaceIds.length > 0 ? (
+          <button
+            type="button"
+            className="dsv-btn"
+            onClick={() => setPrefs({ hiddenWorkspaceIds: [] })}
+          >
+            {t('settings.workspaceFilterReset')}
+          </button>
+        ) : null}
+      </div>
+      <div className="dsv-wsList" role="list">
+        <button
+          type="button"
+          className="dsv-wsRow dsv-wsRowAll"
+          role="listitem"
+          data-active={workspaceId === ALL ? 'true' : 'false'}
+          aria-pressed={workspaceId === ALL}
+          onClick={() => {
+            setWorkspaceId(ALL);
+            setTab('active');
+          }}
+        >
+          <span className="dsv-wsMain">
+            <span className="dsv-wsName">{t('filter.allWorkspaces')}</span>
+            <span className="dsv-wsPath">{t('workspaceFilter.allHint')}</span>
+          </span>
+          <span className="dsv-wsCount">{t('counts.summary', { n: annotated.length })}</span>
+        </button>
+        {filterWorkspaceItems.map((workspace) => {
+          const id = workspace?.workspaceId;
+          const path = String(workspace?.path ?? '');
+          const title = String(workspace?.title || path || id || '');
+          const hidden = hiddenWorkspaceSet.has(id);
+          return (
+            <div
+              className="dsv-wsRow"
+              role="listitem"
+              key={id ?? path}
+              data-active={workspaceId === id ? 'true' : 'false'}
+              data-hidden={hidden ? 'true' : 'false'}
+            >
+              <button
+                type="button"
+                className="dsv-wsMain dsv-wsApply"
+                aria-pressed={workspaceId === id}
+                title={t('filter.applyWorkspace')}
+                onClick={() => {
+                  setWorkspaceId(id);
+                  setQuery('');
+                  setStatus(ALL);
+                  setTab('active');
+                }}
+              >
+                <span className="dsv-wsName" title={title}>{title}</span>
+                {path ? <code className="dsv-wsPath" title={path}>{path}</code> : null}
+              </button>
+              <span className="dsv-wsCount">{t('counts.summary', { n: workspace?.sessionIds?.length ?? 0 })}</span>
+              <input
+                className="dsv-switch"
+                type="checkbox"
+                role="switch"
+                checked={!hidden}
+                aria-label={t('settings.workspaceShow', { name: title })}
+                onChange={() => toggleWorkspaceVisibility(id)}
+              />
+            </div>
+          );
+        })}
+        {filterWorkspaceItems.length === 0 ? (
+          <p className="dsv-wsEmpty">{t('settings.workspaceFilterEmpty')}</p>
+        ) : null}
+      </div>
+    </section>
+  );
 
   const confirmCopy = confirm ? CONFIRM_COPY[confirm.kind] : null;
 
@@ -773,7 +859,9 @@ export function SessionView({
           </div>
           {tab !== 'settings' && (
             <span className="dsv-total" aria-live="polite">
-              {t('counts.summary', { n: tabCounts[tab] })}
+              {tab === 'workspaces'
+                ? t('counts.workspaces', { n: tabCounts.workspaces })
+                : t('counts.summary', { n: tabCounts[tab] })}
             </span>
           )}
         </header>
@@ -789,12 +877,12 @@ export function SessionView({
               onClick={() => setTab(value)}
             >
               {t(`tab.${value}`)}
-              {value !== 'settings' && <span className="dsv-tabCount">{tabCounts[value]}</span>}
+              {value !== 'workspaces' && <span className="dsv-tabCount">{tabCounts[value]}</span>}
             </button>
           ))}
         </nav>
 
-        {tab !== 'settings' && (
+        {tab !== 'workspaces' && (
         <div className="dsv-toolbar">
           <div className="dsv-search">
             <span className="dsv-searchIcon">
@@ -842,89 +930,6 @@ export function SessionView({
               <ChevronDownIcon />
             </span>
           </div>
-          <div className="dsv-wsFilter" ref={wsFilterRef}>
-            <button
-              type="button"
-              className="dsv-btn"
-              aria-expanded={wsFilterOpen}
-              onClick={() => setWsFilterOpen((value) => !value)}
-            >
-              {t('side.workspaceFilter')}
-              {hiddenWorkspaceIds.length > 0 ? ` (${hiddenWorkspaceIds.length})` : ''}
-            </button>
-            {wsFilterOpen && (
-              <div className="dsv-wsFilterPop" role="dialog" aria-label={t('side.workspaceFilter')}>
-                <label className="dsv-wsFilterRow dsv-wsFilterShow">
-                  <span className="dsv-wsFilterName">{t('settings.showWorkspaces')}</span>
-                  <input
-                    className="dsv-switch"
-                    type="checkbox"
-                    role="switch"
-                    checked={prefs.showWorkspaces}
-                    aria-label={t('settings.showWorkspaces')}
-                    onChange={(event) => setPrefs({ showWorkspaces: event.target.checked })}
-                  />
-                </label>
-                <div className="dsv-wsFilterHead">
-                  <span>{t('filter.filterSessions')}</span>
-                  {workspaceId !== ALL ? (
-                    <button type="button" className="dsv-wsFilterClear" onClick={() => setWorkspaceId(ALL)}>
-                      {t('filter.allWorkspaces')}
-                    </button>
-                  ) : null}
-                </div>
-                {filterWorkspaceItems.length === 0 ? (
-                  <p className="dsv-wsFilterEmpty">{t('settings.workspaceFilterEmpty')}</p>
-                ) : (
-                  <div className="dsv-wsFilterList">
-                    {filterWorkspaceItems.map((workspace) => {
-                      const id = workspace?.workspaceId;
-                      const path = String(workspace?.path ?? '');
-                      const title = String(workspace?.title || path || id || '');
-                      return (
-                        <div
-                          className="dsv-wsFilterRow"
-                          key={id ?? path}
-                          data-active={workspaceId === id ? 'true' : 'false'}
-                        >
-                          <button
-                            type="button"
-                            className="dsv-wsFilterText dsv-wsFilterApply"
-                            aria-pressed={workspaceId === id}
-                            title={t('filter.applyWorkspace')}
-                            onClick={() => {
-                              setWorkspaceId(id);
-                              setWsFilterOpen(false);
-                            }}
-                          >
-                            <span className="dsv-wsFilterName" title={title}>{title}</span>
-                            {path ? <code className="dsv-wsFilterPath" title={path}>{path}</code> : null}
-                          </button>
-                          <input
-                            className="dsv-switch"
-                            type="checkbox"
-                            role="switch"
-                            checked={!hiddenWorkspaceSet.has(id)}
-                            aria-label={t('settings.workspaceShow')}
-                            onChange={() => toggleWorkspaceVisibility(id)}
-                          />
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-                {hiddenWorkspaceIds.length > 0 ? (
-                  <button
-                    type="button"
-                    className="dsv-wsFilterReset"
-                    onClick={() => setPrefs({ hiddenWorkspaceIds: [] })}
-                  >
-                    {t('settings.workspaceFilterReset')}
-                  </button>
-                ) : null}
-              </div>
-            )}
-          </div>
           <div className="dsv-toolbarActions">
             <button
               type="button"
@@ -967,7 +972,7 @@ export function SessionView({
           </div>
         )}
 
-        {manage && tab !== 'settings' && (
+        {manage && tab !== 'workspaces' && (
           <div className="dsv-batch">
             <span className="dsv-batchText">{t('select.count', { n: selected.length })}</span>
             <button
@@ -1060,7 +1065,9 @@ export function SessionView({
 
         {workspaces?.state === 'error' && <div className="dsv-banner">{t('error.workspaces')}</div>}
 
-        {empty ? (
+        {tab === 'workspaces' ? (
+          workspaceFilterPage
+        ) : empty ? (
           <div className="dsv-empty">{emptyNode}</div>
         ) : (
           sectionList.map(([key, title, rows, path]) => renderSection(key, title, rows, manage && groupWorkspaces && tab === 'active', path))
