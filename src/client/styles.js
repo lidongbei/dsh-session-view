@@ -1686,6 +1686,12 @@ body.dsv-dragging * { -webkit-user-select: none !important; user-select: none !i
 .dsv-wsFilterReset:hover { background: var(--dsw-alias-interactive-bg-hover); color: var(--dsw-alias-label-primary); }
 .dsv-menuDivider { height: 1px; margin: 4px 6px; background: var(--dsw-alias-border-l4); }
 
+.dsv-sectionTitleWrap { display:flex; flex-direction:column; gap:1px; min-width:0; text-align:left; }
+.dsv-sectionPath { max-width:min(520px,60vw); overflow:hidden; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:10px; line-height:13px; color:var(--dsw-alias-label-tertiary); text-overflow:ellipsis; white-space:nowrap; }
+.dsv-wsFilter { position:relative; flex:none; }
+.dsv-wsFilterPop { position:absolute; top:calc(100% + 6px); right:0; z-index:60; display:flex; flex-direction:column; width:340px; max-height:min(70vh,460px); padding:6px; border:0.5px solid var(--dsw-alias-border-l4); border-radius:12px; background:var(--dsw-alias-bg-base); box-shadow:0 8px 24px rgba(0,0,0,.18); }
+.dsv-wsFilterShow { margin-bottom:4px; border-bottom:1px solid var(--dsw-alias-border-l4); border-radius:8px 8px 0 0; }
+
 `;
 
 export const BOARD_ONLY_STYLES = '';

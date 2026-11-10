@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {
   STATUS_LIST,
   annotateRows,
@@ -17,7 +17,8 @@ import {
   workspaceLabel,
 } from './logic.js';
 import { addToTrash, fetchTrash, purgeTrash, restoreTrash } from './api.js';
-import { getPrefs, subscribePrefs } from './prefs.js';
+import { getPrefs, setPrefs, subscribePrefs } from './prefs.js';
+import { consumePanelIntent, getPanelIntent, subscribePanelIntent } from './panel-intent.js';
 import { addTrashIds, removeTrashIds, setTrashItems } from './trash-store.js';
 import { STYLES } from './styles.js';
 import {
@@ -84,6 +85,49 @@ export function SessionView({
   const [toast, setToast] = useState(null);
   const [trash, setTrash] = useState({ state: 'idle', items: [], error: null });
   const [staleIds, setStaleIds] = useState(() => new Set());
+  const [wsFilterOpen, setWsFilterOpen] = useState(false);
+  const wsFilterRef = useRef(null);
+  const panelIntent = useSyncExternalStore(subscribePanelIntent, getPanelIntent, () => null);
+
+  useEffect(() => {
+    if (panelIntent !== 'workspaceFilter') return;
+    setWsFilterOpen(true);
+    consumePanelIntent();
+  }, [panelIntent]);
+
+  useEffect(() => {
+    if (!wsFilterOpen) return undefined;
+    const onPointerDown = (event) => {
+      if (wsFilterRef.current && !wsFilterRef.current.contains(event.target)) setWsFilterOpen(false);
+    };
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') setWsFilterOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [wsFilterOpen]);
+
+  const hiddenWorkspaceIds = prefs.hiddenWorkspaceIds ?? [];
+  const hiddenWorkspaceSet = useMemo(() => new Set(hiddenWorkspaceIds), [hiddenWorkspaceIds]);
+  const filterWorkspaceItems = useMemo(
+    () =>
+      [...(workspaces?.items ?? [])].sort((a, b) =>
+        String(a?.path ?? a?.title ?? '').localeCompare(String(b?.path ?? b?.title ?? ''), 'zh'),
+      ),
+    [workspaces?.items],
+  );
+  const toggleWorkspaceVisibility = (id) => {
+    if (!id) return;
+    setPrefs({
+      hiddenWorkspaceIds: hiddenWorkspaceSet.has(id)
+        ? hiddenWorkspaceIds.filter((item) => item !== id)
+        : [...hiddenWorkspaceIds, id],
+    });
+  };
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 60_000);
@@ -562,7 +606,7 @@ export function SessionView({
     });
   };
 
-  const renderSection = (key, title, rows, selectable = false) => {
+  const renderSection = (key, title, rows, selectable = false, path = '') => {
     if (rows.length === 0) return null;
     const ids = rows.map((row) => row.session.id);
     const allSelected = ids.length > 0 && ids.every((id) => selectedSet.has(id));
@@ -579,7 +623,10 @@ export function SessionView({
             <span className="dsv-sectionChevron" data-collapsed={collapsed} aria-hidden="true">
               <ChevronDownIcon size={12} />
             </span>
-            <span className="dsv-sectionTitle">{title}</span>
+            <span className="dsv-sectionTitleWrap">
+              <span className="dsv-sectionTitle">{title}</span>
+              {path ? <code className="dsv-sectionPath" title={path}>{path}</code> : null}
+            </span>
             <span className="dsv-sectionCount">{rows.length}</span>
           </button>
           {selectable && (
@@ -617,6 +664,7 @@ export function SessionView({
         buckets.set(key, {
           key,
           title: workspace ? workspaceLabel(workspace) : t('workspace.unknown'),
+          path: String(workspace?.path ?? ''),
           rows: [],
         });
       }
@@ -635,14 +683,14 @@ export function SessionView({
   const sectionList =
     tab === 'archived'
       ? groupWorkspaces
-        ? archivedWorkspaceSections.map((group) => [group.key, group.title, group.rows])
+        ? archivedWorkspaceSections.map((group) => [group.key, group.title, group.rows, group.path])
         : [['archived', t('tab.archived'), archived]]
       : tab === 'trash'
         ? groupWorkspaces
-          ? trashWorkspaceSections.map((group) => [group.key, group.title, group.rows])
+          ? trashWorkspaceSections.map((group) => [group.key, group.title, group.rows, group.path])
           : [['trash', t('tab.trash'), trashed]]
         : groupWorkspaces
-          ? activeWorkspaceSections.map((group) => [group.key, group.title, group.rows])
+          ? activeWorkspaceSections.map((group) => [group.key, group.title, group.rows, group.path])
           : status === ALL
             ? [
                 ['pinned', t('section.pinned'), sections.pinned],
@@ -787,6 +835,69 @@ export function SessionView({
               <ChevronDownIcon />
             </span>
           </div>
+          <div className="dsv-wsFilter" ref={wsFilterRef}>
+            <button
+              type="button"
+              className="dsv-btn"
+              aria-expanded={wsFilterOpen}
+              onClick={() => setWsFilterOpen((value) => !value)}
+            >
+              {t('side.workspaceFilter')}
+              {hiddenWorkspaceIds.length > 0 ? ` (${hiddenWorkspaceIds.length})` : ''}
+            </button>
+            {wsFilterOpen && (
+              <div className="dsv-wsFilterPop" role="dialog" aria-label={t('side.workspaceFilter')}>
+                <label className="dsv-wsFilterRow dsv-wsFilterShow">
+                  <span className="dsv-wsFilterName">{t('settings.showWorkspaces')}</span>
+                  <input
+                    className="dsv-switch"
+                    type="checkbox"
+                    role="switch"
+                    checked={prefs.showWorkspaces}
+                    aria-label={t('settings.showWorkspaces')}
+                    onChange={(event) => setPrefs({ showWorkspaces: event.target.checked })}
+                  />
+                </label>
+                <div className="dsv-wsFilterHead">{t('settings.workspaceFilterHint')}</div>
+                {filterWorkspaceItems.length === 0 ? (
+                  <p className="dsv-wsFilterEmpty">{t('settings.workspaceFilterEmpty')}</p>
+                ) : (
+                  <div className="dsv-wsFilterList">
+                    {filterWorkspaceItems.map((workspace) => {
+                      const id = workspace?.workspaceId;
+                      const path = String(workspace?.path ?? '');
+                      const title = String(workspace?.title || path || id || '');
+                      return (
+                        <label className="dsv-wsFilterRow" key={id ?? path}>
+                          <span className="dsv-wsFilterText">
+                            <span className="dsv-wsFilterName" title={title}>{title}</span>
+                            {path ? <code className="dsv-wsFilterPath" title={path}>{path}</code> : null}
+                          </span>
+                          <input
+                            className="dsv-switch"
+                            type="checkbox"
+                            role="switch"
+                            checked={!hiddenWorkspaceSet.has(id)}
+                            aria-label={t('settings.workspaceShow')}
+                            onChange={() => toggleWorkspaceVisibility(id)}
+                          />
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+                {hiddenWorkspaceIds.length > 0 ? (
+                  <button
+                    type="button"
+                    className="dsv-wsFilterReset"
+                    onClick={() => setPrefs({ hiddenWorkspaceIds: [] })}
+                  >
+                    {t('settings.workspaceFilterReset')}
+                  </button>
+                ) : null}
+              </div>
+            )}
+          </div>
           <div className="dsv-toolbarActions">
             <button
               type="button"
@@ -925,7 +1036,7 @@ export function SessionView({
         {empty ? (
           <div className="dsv-empty">{emptyNode}</div>
         ) : (
-          sectionList.map(([key, title, rows]) => renderSection(key, title, rows, manage && groupWorkspaces && tab === 'active'))
+          sectionList.map(([key, title, rows, path]) => renderSection(key, title, rows, manage && groupWorkspaces && tab === 'active', path))
         )}
       </div>
       </div>
