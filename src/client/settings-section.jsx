@@ -158,12 +158,17 @@ export function SessionViewSettings({ t }) {
             <option value="manual">{t('settings.sort.manual')}</option>
           </select>
         </Row>
-        <Toggle
-          label={t('settings.nest')}
-          description={t('settings.desc.nest')}
-          value={prefs.nestWorkspaces}
-          onChange={(value) => setPrefs({ nestWorkspaces: value })}
-        />
+        <Row label={t('settings.workspaceGroupMode')} description={t('settings.desc.workspaceGroupMode')}>
+          <select
+            className="dsv-select"
+            value={prefs.workspaceGroupMode ?? 'nested'}
+            onChange={(event) => setPrefs({ workspaceGroupMode: event.target.value })}
+          >
+            <option value="default">{t('group.mode.default')}</option>
+            <option value="nested">{t('group.mode.nested')}</option>
+            <option value="custom">{t('group.mode.custom')}</option>
+          </select>
+        </Row>
       </Group>
 
       <Group title={t('settings.group.behavior')}>

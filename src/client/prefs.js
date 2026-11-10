@@ -28,6 +28,16 @@ export const DEFAULT_PREFS = Object.freeze({
   archivedFilter: 'hide',
   sort: 'updated',
   nestWorkspaces: true,
+  /**
+   * How the "工作区会话" section arranges workspaces:
+   * - default: one flat section per workspace in registry order
+   * - nested: path-based tree
+   * - custom: user-managed multi-level groups
+   */
+  workspaceGroupMode: 'nested',
+  workspaceGroups: Object.freeze([]),
+  /** workspaceId -> workspace group id; a workspace belongs to at most one group. */
+  workspaceAssignments: Object.freeze({}),
   manualOrder: Object.freeze({}),
   collapsedGroups: Object.freeze([]),
   focusGroups: Object.freeze([]),
@@ -45,6 +55,55 @@ export const DEFAULT_PREFS = Object.freeze({
 const MODES = new Set(['session', 'native']);
 const ARCHIVED = new Set(['hide', 'show', 'only']);
 const SORTS = new Set(['updated', 'manual']);
+const GROUP_MODES = new Set(['default', 'nested', 'custom']);
+
+function sanitizeWorkspaceGroups(input) {
+  if (!Array.isArray(input)) return [];
+  const seen = new Set();
+  const groups = [];
+  for (const entry of input) {
+    if (!entry || typeof entry !== 'object') continue;
+    const id = typeof entry.id === 'string' ? entry.id.trim().slice(0, 80) : '';
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    const name = typeof entry.name === 'string' ? entry.name.trim().slice(0, 60) : '';
+    const parentId = typeof entry.parentId === 'string' && entry.parentId ? entry.parentId : null;
+    groups.push({ id, name, parentId });
+  }
+  // Drop dangling parents and break cycles so the tree is always renderable.
+  const byId = new Map(groups.map((group) => [group.id, group]));
+  for (const group of groups) {
+    if (!group.parentId) continue;
+    let node = byId.get(group.parentId);
+    if (!node || group.parentId === group.id) {
+      group.parentId = null;
+      continue;
+    }
+    let steps = 0;
+    let cycle = false;
+    while (node && steps <= groups.length) {
+      if (node.id === group.id) {
+        cycle = true;
+        break;
+      }
+      node = node.parentId ? byId.get(node.parentId) : null;
+      steps += 1;
+    }
+    if (cycle) group.parentId = null;
+  }
+  return groups;
+}
+
+function sanitizeAssignments(input, groups) {
+  if (!input || typeof input !== 'object') return {};
+  const ids = new Set(groups.map((group) => group.id));
+  const out = {};
+  for (const [workspaceId, groupId] of Object.entries(input)) {
+    if (!workspaceId || !ids.has(groupId)) continue;
+    out[workspaceId] = groupId;
+  }
+  return out;
+}
 const GLOWS = new Set(['off', 'marquee', 'aurora', 'pulse', 'rainbow', 'comet', 'scan', 'dash']);
 
 function sanitizeFocusGroups(input) {
@@ -89,6 +148,13 @@ function sanitize(raw) {
   const hiddenWorkspaceIds = Array.isArray(value.hiddenWorkspaceIds)
     ? [...new Set(value.hiddenWorkspaceIds.filter((id) => typeof id === 'string' && id))]
     : [];
+  const workspaceGroups = sanitizeWorkspaceGroups(value.workspaceGroups);
+  const workspaceAssignments = sanitizeAssignments(value.workspaceAssignments, workspaceGroups);
+  const workspaceGroupMode = GROUP_MODES.has(value.workspaceGroupMode)
+    ? value.workspaceGroupMode
+    : value.nestWorkspaces === false
+      ? 'default'
+      : DEFAULT_PREFS.workspaceGroupMode;
   return {
     mode: MODES.has(value.mode) ? value.mode : DEFAULT_PREFS.mode,
     activeLimit: clampLimit(value.activeLimit, DEFAULT_PREFS.activeLimit),
@@ -108,7 +174,10 @@ function sanitize(raw) {
     glowPending: GLOWS.has(value.glowPending) ? value.glowPending : GLOWS.has(value.glowEffect) ? value.glowEffect : 'off',
     glowDone: GLOWS.has(value.glowDone) ? value.glowDone : GLOWS.has(value.glowEffect) ? value.glowEffect : 'off',
     sort: SORTS.has(value.sort) ? value.sort : DEFAULT_PREFS.sort,
-    nestWorkspaces: value.nestWorkspaces !== false,
+    nestWorkspaces: workspaceGroupMode === 'nested',
+    workspaceGroupMode,
+    workspaceGroups,
+    workspaceAssignments,
     manualOrder,
     collapsedGroups,
     focusGroups,
@@ -129,6 +198,8 @@ function fresh() {
     focusExpanded: [],
     focusEnabled: true,
     hiddenWorkspaceIds: [],
+    workspaceGroups: [],
+    workspaceAssignments: {},
   };
 }
 

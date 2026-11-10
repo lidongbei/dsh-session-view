@@ -6,6 +6,7 @@ import {
   buildCandidates,
   filterHiddenRows,
   filterHiddenWorkspaces,
+  flattenWorkspaceGroups,
   groupByWorkspace,
   limitRows,
   moveId,
@@ -255,4 +256,37 @@ test('rows from hidden workspaces are dropped instead of falling into the ungrou
     filterHiddenRows(rows, ['a', 'b', 'missing']).map((item) => item.session.id),
     ['three'],
   );
+});
+
+test('flattenWorkspaceGroups keeps parents before children with depth', () => {
+  const groups = [
+    { id: 'root', name: 'Root', parentId: null },
+    { id: 'child', name: 'Child', parentId: 'root' },
+    { id: 'grand', name: 'Grand', parentId: 'child' },
+    { id: 'root2', name: 'Root 2', parentId: null },
+  ];
+  assert.deepEqual(
+    flattenWorkspaceGroups(groups).map((group) => [group.id, group.depth]),
+    [['root', 0], ['child', 1], ['grand', 2], ['root2', 0]],
+  );
+});
+
+test('workspace group prefs break cycles and drop stale assignments', () => {
+  resetPrefs();
+  setPrefs({
+    workspaceGroupMode: 'custom',
+    workspaceGroups: [
+      { id: 'a', name: 'A', parentId: 'b' },
+      { id: 'b', name: 'B', parentId: 'a' },
+      { id: 'c', name: 'C', parentId: 'missing' },
+    ],
+    workspaceAssignments: { w1: 'a', w2: 'missing' },
+  });
+  const prefs = getPrefs();
+  assert.equal(prefs.workspaceGroupMode, 'custom');
+  assert.equal(prefs.workspaceGroups.find((group) => group.id === 'a').parentId, null);
+  assert.equal(prefs.workspaceGroups.find((group) => group.id === 'c').parentId, null);
+  assert.deepEqual(Object.keys(prefs.workspaceAssignments), ['w1']);
+  assert.equal(flattenWorkspaceGroups(prefs.workspaceGroups).length, 3);
+  resetPrefs();
 });

@@ -91,6 +91,16 @@ globalThis.__DSV_PANE_HTML_COMPACT = renderToStaticMarkup(React.createElement(Si
 setPrefs({ compact: false, sort: 'manual', collapsedGroups: [] });
 globalThis.__DSV_PANE_HTML_MANUAL = renderToStaticMarkup(React.createElement(SidebarWorkspacePane, props));
 resetPrefs();
+setPrefs({
+  workspaceGroupMode: 'custom',
+  workspaceGroups: [
+    { id: 'g1', name: '组 A', parentId: null },
+    { id: 'g2', name: '子组 B', parentId: 'g1' },
+  ],
+  workspaceAssignments: { w1: 'g2' },
+});
+globalThis.__DSV_PANE_HTML_GROUPS = renderToStaticMarkup(React.createElement(SidebarWorkspacePane, props));
+resetPrefs();
 `;
 
 test('SidebarWorkspacePane renders pinned and a limited active group', async () => {
@@ -126,6 +136,11 @@ test('SidebarWorkspacePane renders pinned and a limited active group', async () 
     assert.ok(glow.includes('dsv-sideGlow--aurora'), 'aurora glow missing');
     assert.ok(glow.includes('dsv-sideGlow--scan'), 'scan glow missing for done rows');
     assert.ok(glow.includes('data-status="running"') && glow.includes('data-status="pending"'), 'glow must mark running and pending rows');
+    const grouped = globalThis.__DSV_PANE_HTML_GROUPS;
+    assert.ok(grouped.includes('组 A'), 'missing custom group heading');
+    assert.ok(grouped.includes('子组 B'), 'missing nested custom group heading');
+    assert.ok(grouped.includes('Task run1'), 'assigned workspace sessions missing from custom group');
+    assert.ok(!grouped.includes('aria-label="App"'), 'custom grouping must not fall back to workspace sections');
     assert.ok(html.includes('置顶'), 'missing pinned heading');
     assert.ok(html.includes('Pinned task'), 'missing pinned row');
     const active = html.match(/<section class="dsv-sideGroup" aria-label="活跃会话">([\s\S]*?)<\/section>/)?.[1] ?? '';

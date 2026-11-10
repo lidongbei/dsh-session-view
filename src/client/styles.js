@@ -1736,6 +1736,24 @@ body.dsv-dragging * { -webkit-user-select: none !important; user-select: none !i
 .dsv-wsFilterPop { position:absolute; top:calc(100% + 6px); right:0; z-index:60; display:flex; flex-direction:column; width:340px; max-height:min(70vh,460px); padding:6px; border:0.5px solid var(--dsw-alias-border-l4); border-radius:12px; background:var(--dsw-alias-bg-base); box-shadow:0 8px 24px rgba(0,0,0,.18); }
 .dsv-wsFilterShow { margin-bottom:4px; border-bottom:1px solid var(--dsw-alias-border-l4); border-radius:8px 8px 0 0; }
 
+.dsv-menuChoice { display:flex; align-items:center; gap:6px; }
+.dsv-menuCheck { width:12px; flex:none; color:var(--dsw-alias-state-business-primary); font-size:11px; line-height:1; }
+.dsv-groupIntro { margin:0 0 8px; }
+.dsv-groupToolbar { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }
+.dsv-groupCreate { display:flex; flex-direction:column; gap:8px; margin-bottom:10px; padding:10px; border:1px solid var(--dsw-alias-border-l4); border-radius:10px; }
+.dsv-groupParentField { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--dsw-alias-label-secondary); }
+.dsv-groupParentField .dsv-select { flex:1; min-width:0; }
+.dsv-groupCreateFoot { display:flex; justify-content:flex-end; }
+.dsv-groupList { display:flex; flex-direction:column; gap:8px; max-height:420px; overflow:auto; padding-right:2px; }
+.dsv-groupCard { padding:8px 10px; border:1px solid var(--dsw-alias-border-l3); border-radius:10px; }
+.dsv-groupCardHead { display:flex; align-items:center; gap:6px; }
+.dsv-groupCardName { display:inline-flex; align-items:center; gap:4px; min-width:0; font-size:12px; font-weight:600; color:var(--dsw-alias-label-primary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.dsv-groupDepth { width:10px; color:var(--dsw-alias-label-tertiary); }
+.dsv-groupMeta { flex:none; margin-left:auto; font-size:10px; color:var(--dsw-alias-label-tertiary); }
+.dsv-groupChips { display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; }
+.dsv-groupCardActions { display:flex; gap:2px; margin-top:8px; }
+.dsv-groupMembers { display:flex; flex-direction:column; gap:4px; max-height:180px; overflow:auto; margin-top:8px; padding-top:6px; border-top:1px solid var(--dsw-alias-border-l4); }
+
 `;
 
 export const BOARD_ONLY_STYLES = '';

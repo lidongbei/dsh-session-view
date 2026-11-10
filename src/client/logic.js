@@ -561,6 +561,38 @@ export function watermarkLimit(rows, base, ceiling = 50) {
   return Math.min(Math.max(base, qualifying + 1), ceiling);
 }
 
+/**
+ * Flatten the custom workspace-group tree in render order (parents before
+ * children, siblings in definition order) and annotate each entry with depth.
+ */
+export function flattenWorkspaceGroups(groups = []) {
+  const items = Array.isArray(groups) ? groups.filter((group) => group && group.id) : [];
+  const byId = new Map(items.map((group) => [group.id, group]));
+  const children = new Map();
+  for (const group of items) {
+    const parentId = group.parentId && byId.has(group.parentId) && group.parentId !== group.id
+      ? group.parentId
+      : null;
+    if (!children.has(parentId)) children.set(parentId, []);
+    children.get(parentId).push(group);
+  }
+  const out = [];
+  const seen = new Set();
+  const walk = (parentId, depth) => {
+    for (const group of children.get(parentId) ?? []) {
+      if (seen.has(group.id)) continue;
+      seen.add(group.id);
+      out.push({ ...group, depth });
+      walk(group.id, depth + 1);
+    }
+  };
+  walk(null, 0);
+  for (const group of items) {
+    if (!seen.has(group.id)) out.push({ ...group, depth: 0 });
+  }
+  return out;
+}
+
 /** The active focus group, or undefined when focus mode is off or stale. */
 export function focusGroupById(prefs, id = prefs?.focusGroupId) {
   if (prefs?.focusEnabled === false) return undefined;

@@ -11,6 +11,7 @@ import {
   filterRowsByWorkspaceIds,
   filterHiddenRows,
   filterHiddenWorkspaces,
+  flattenWorkspaceGroups,
   focusGroupById,
   focusIncludesPath,
   formatRelativeTime,
@@ -34,6 +35,7 @@ import { addTrashIds, getTrashIds, refreshTrash, subscribeTrash } from './trash-
 import { requestPanelIntent } from './panel-intent.js';
 import { ConfirmDialog, Dialog, PromptDialog } from './dialog.jsx';
 import { FocusBar, FocusDialog, FocusMembersDialog, groupLabel, memberSummary } from './focus-mode.jsx';
+import { groupDisplayName, WorkspaceGroupsDialog } from './workspace-groups.jsx';
 import { STYLES } from './styles.js';
 import { ActivityIcon, ArchiveIcon, ChevronDownIcon, ChevronRightIcon, ClockIcon, FolderIcon, LayoutIcon, PinIcon, PlusIcon, RestoreIcon, SearchIcon, SessionViewIcon, TargetIcon, TrashIcon, ChevronsUpIcon, ChevronsDownIcon } from './icons.jsx';
 
@@ -334,17 +336,59 @@ export function SidebarWorkspacePane({
   // start a session from the workspace context menu.
   const buildGroups = (rows, workspaceView) => {
     if (!workspaceView) return [];
-    return groupByWorkspace(rows, workspaceView, prefs.nestWorkspaces).map((group) => {
+    const sortGroup = (list, key) => (
+      prefs.sort === 'manual' ? applyFamilyOrder(list, prefs.manualOrder[key]) : sortFamilies(list, byUpdated)
+    );
+    const mode = prefs.workspaceGroupMode ?? (prefs.nestWorkspaces ? 'nested' : 'default');
+    if (mode === 'custom') {
+      const flattened = flattenWorkspaceGroups(prefs.workspaceGroups);
+      const byGroup = new Map(flattened.map((group) => [group.id, []]));
+      const ungrouped = [];
+      for (const row of rows) {
+        const workspaceId = row.workspace?.workspaceId;
+        const groupId = workspaceId ? prefs.workspaceAssignments?.[workspaceId] : null;
+        if (groupId && byGroup.has(groupId)) byGroup.get(groupId).push(row);
+        else ungrouped.push(row);
+      }
+      const sections = flattened.map((group, index) => ({
+        key: `wg:${group.id}`,
+        label: groupDisplayName(t, group, index),
+        depth: group.depth,
+        custom: true,
+        groupId: group.id,
+        workspace: null,
+        rows: sortGroup(byGroup.get(group.id) ?? [], group.id),
+      }));
+      if (ungrouped.length > 0) {
+        sections.push({
+          key: 'wg:__none',
+          label: t('group.ungrouped'),
+          depth: 0,
+          custom: true,
+          workspace: null,
+          rows: sortGroup(ungrouped, '__none'),
+        });
+      }
+      return sections;
+    }
+    return groupByWorkspace(rows, workspaceView, mode === 'nested').map((group) => {
       const key = group.workspace?.workspaceId ?? '__none';
-      const sorted =
-        prefs.sort === 'manual' ? applyFamilyOrder(group.rows, prefs.manualOrder[key]) : sortFamilies(group.rows, byUpdated);
-      return { ...group, rows: sorted, key };
+      return { ...group, rows: sortGroup(group.rows, key), key };
     });
   };
 
   const groups = useMemo(
     () => buildGroups(restRows, focusWorkspaces),
-    [restRows, focusWorkspaces, prefs.nestWorkspaces, prefs.sort, prefs.manualOrder],
+    [
+      restRows,
+      focusWorkspaces,
+      prefs.workspaceGroupMode,
+      prefs.workspaceGroups,
+      prefs.workspaceAssignments,
+      prefs.nestWorkspaces,
+      prefs.sort,
+      prefs.manualOrder,
+    ],
   );
 
   const archived = useMemo(() => {
@@ -606,6 +650,51 @@ export function SidebarWorkspacePane({
     </button>
   );
 
+  const currentGroupMode = prefs.workspaceGroupMode
+    ?? (prefs.nestWorkspaces === false ? 'default' : 'nested');
+
+  const contextWorkspaceSectionItems = () => (
+    <>
+      {contextWorkspaceFilterEntry()}
+      <span className="dsv-menuDivider" role="separator" />
+      {['default', 'nested', 'custom'].map((mode) => (
+        <button
+          key={mode}
+          type="button"
+          role="menuitemradio"
+          aria-checked={currentGroupMode === mode}
+          className="dsv-menuChoice"
+          onClick={() => { closeMenus(); setPrefs({ workspaceGroupMode: mode }); }}
+        >
+          <span className="dsv-menuCheck" aria-hidden="true">{currentGroupMode === mode ? '✓' : ''}</span>
+          {t(`group.mode.${mode}`)}
+        </button>
+      ))}
+      <span className="dsv-menuDivider" role="separator" />
+      <button
+        type="button"
+        role="menuitem"
+        onClick={() => { closeMenus(); setDialog({ kind: 'workspaceGroups' }); }}
+      >
+        {t('group.manage')}
+      </button>
+    </>
+  );
+
+  const contextWorkspaceGroupItems = () => (
+    <>
+      <button
+        type="button"
+        role="menuitem"
+        onClick={() => { closeMenus(); setDialog({ kind: 'workspaceGroups' }); }}
+      >
+        {t('group.manage')}
+      </button>
+      <span className="dsv-menuDivider" role="separator" />
+      {contextWorkspaceFilterEntry()}
+    </>
+  );
+
   const contextFocusItems = (focus) => {
     const active = focus.id === prefs.focusGroupId;
     const label = active ? t('focus.exit') : prefs.focusGroupId ? t('focus.switch') : t('focus.enter');
@@ -653,15 +742,22 @@ export function SidebarWorkspacePane({
   const contextFocus = contextMenu?.kind === 'focus'
     ? prefs.focusGroups.find((group) => group.id === contextMenu.id) ?? null
     : null;
+  const contextWorkspaceGroup = contextMenu?.kind === 'workspaceGroup'
+    ? prefs.workspaceGroups.find((group) => group.id === contextMenu.id) ?? null
+    : null;
   const contextItems = contextRow
     ? contextSessionItems(contextRow, contextMenu.archived)
     : contextMenu?.kind === 'workspaceFilter'
       ? contextWorkspaceFilterEntry()
-      : contextWorkspace
-        ? contextWorkspaceItems(contextWorkspace)
-        : contextFocus
-          ? contextFocusItems(contextFocus)
-          : null;
+      : contextMenu?.kind === 'workspaceSection'
+        ? contextWorkspaceSectionItems()
+        : contextWorkspaceGroup
+          ? contextWorkspaceGroupItems(contextWorkspaceGroup)
+          : contextWorkspace
+            ? contextWorkspaceItems(contextWorkspace)
+            : contextFocus
+              ? contextFocusItems(contextFocus)
+              : null;
 
   const sectionHead = ({ key, label, count, icon = null, collapsed, extra = null, onContextMenu = undefined }) => (
     <div className="dsv-sideGroupHead dsv-sideSectionHead" onContextMenu={onContextMenu}>
@@ -754,7 +850,9 @@ export function SidebarWorkspacePane({
   const renderWorkspaceHead = (group, index) => {
     const workspace = group.workspace;
     const key = group.key;
-    const collapsable = !!workspace;
+    const custom = group.custom === true;
+    const label = group.label ?? (workspace ? workspaceLabel(workspace) : t('section.all'));
+    const collapsable = !!workspace || custom;
     const collapsed = collapsedGroups.has(key);
     const activeCount = activeRows(group.rows).length;
     return (
@@ -795,11 +893,16 @@ export function SidebarWorkspacePane({
           clearDragMarks();
         }}
         onContextMenu={(event) => {
-          if (!workspace) return;
+          if (!workspace && !custom) return;
           event.preventDefault();
           event.stopPropagation();
           setMenu(null);
-          setContextMenu({ kind: 'workspace', id: key, x: event.clientX, y: event.clientY });
+          setContextMenu({
+            kind: custom ? 'workspaceGroup' : 'workspace',
+            id: custom ? group.groupId : key,
+            x: event.clientX,
+            y: event.clientY,
+          });
         }}
       >
         {collapsable ? (
@@ -807,13 +910,13 @@ export function SidebarWorkspacePane({
             type="button"
             className="dsv-sideGroupToggle"
             aria-expanded={!collapsed}
-            aria-label={workspaceLabel(workspace)}
+            aria-label={label}
             onClick={() => toggleGroup(key)}
           >
             <span className="dsv-sideChevron" data-collapsed={collapsed}>
               {collapsed ? <ChevronRightIcon size={10} /> : <ChevronDownIcon size={10} />}
             </span>
-            <span className="dsv-sideGroupTitle">{workspaceLabel(workspace)}</span>
+            <span className="dsv-sideGroupTitle">{label}</span>
             {activeCount > 0 && (
               <span
                 className="dsv-sideActiveMark"
@@ -828,7 +931,7 @@ export function SidebarWorkspacePane({
           </button>
         ) : (
           <div className="dsv-sideGroupToggle">
-            <span className="dsv-sideGroupTitle">{t('section.all')}</span>
+            <span className="dsv-sideGroupTitle">{label}</span>
             {activeCount > 0 && (
               <span
                 className="dsv-sideActiveMark"
@@ -871,7 +974,11 @@ export function SidebarWorkspacePane({
     const hidden = shown < tops.length;
     const canLess = extra > 0;
     return (
-      <section className="dsv-sideGroup" key={group.key} aria-label={group.workspace ? workspaceLabel(group.workspace) : t('section.all')}>
+      <section
+        className="dsv-sideGroup"
+        key={group.key}
+        aria-label={group.label ?? (group.workspace ? workspaceLabel(group.workspace) : t('section.all'))}
+      >
         {renderWorkspaceHead(group, index)}
         {!collapsed && (
           <>
@@ -1249,7 +1356,7 @@ export function SidebarWorkspacePane({
                     event.preventDefault();
                     event.stopPropagation();
                     setMenu(null);
-                    setContextMenu({ kind: 'workspaceFilter', x: event.clientX, y: event.clientY });
+                    setContextMenu({ kind: 'workspaceSection', x: event.clientX, y: event.clientY });
                   },
                   extra: workspaceGroupKeys.length > 0 ? (
                     <button
@@ -1390,6 +1497,16 @@ export function SidebarWorkspacePane({
           prefs={prefs}
           workspaces={workspaces}
           initialCreating={dialog.creating === true}
+          onChange={(patch) => setPrefs(patch)}
+          onClose={() => setDialog(null)}
+        />
+      )}
+
+      {dialog?.kind === 'workspaceGroups' && (
+        <WorkspaceGroupsDialog
+          t={t}
+          prefs={prefs}
+          workspaces={workspaces}
           onChange={(patch) => setPrefs(patch)}
           onClose={() => setDialog(null)}
         />
