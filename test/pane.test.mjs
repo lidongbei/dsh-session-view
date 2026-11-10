@@ -92,7 +92,7 @@ setPrefs({ compact: false, sort: 'manual', collapsedGroups: [] });
 globalThis.__DSV_PANE_HTML_MANUAL = renderToStaticMarkup(React.createElement(SidebarWorkspacePane, props));
 resetPrefs();
 setPrefs({
-  workspaceGroupMode: 'custom',
+  workspaceGroupMode: 'workspace',
   workspaceGroups: [
     { id: 'g1', name: '组 A', parentId: null },
     { id: 'g2', name: '子组 B', parentId: 'g1' },
@@ -100,6 +100,16 @@ setPrefs({
   workspaceAssignments: { w1: 'g2' },
 });
 globalThis.__DSV_PANE_HTML_GROUPS = renderToStaticMarkup(React.createElement(SidebarWorkspacePane, props));
+resetPrefs();
+setPrefs({
+  workspaceGroupMode: 'session',
+  sessionGroups: [
+    { id: 's1', name: '会话组 A', parentId: null },
+    { id: 's2', name: '会话子组 B', parentId: 's1' },
+  ],
+  sessionAssignments: { run1: 's2' },
+});
+globalThis.__DSV_PANE_HTML_SESSIONGROUPS = renderToStaticMarkup(React.createElement(SidebarWorkspacePane, props));
 resetPrefs();
 `;
 
@@ -141,6 +151,12 @@ test('SidebarWorkspacePane renders pinned and a limited active group', async () 
     assert.ok(grouped.includes('子组 B'), 'missing nested custom group heading');
     assert.ok(grouped.includes('Task run1'), 'assigned workspace sessions missing from custom group');
     assert.ok(!grouped.includes('aria-label="App"'), 'custom grouping must not fall back to workspace sections');
+    const sessionGrouped = globalThis.__DSV_PANE_HTML_SESSIONGROUPS;
+    assert.ok(sessionGrouped.includes('会话组 A'), 'missing session group heading');
+    assert.ok(sessionGrouped.includes('会话子组 B'), 'missing nested session group heading');
+    assert.ok(sessionGrouped.includes('Task run1'), 'assigned session missing from its session group');
+    assert.ok(sessionGrouped.includes('未分组'), 'ungrouped sessions bucket missing');
+    assert.ok(!sessionGrouped.includes('aria-label="App"'), 'session grouping must not render workspace sections');
     assert.ok(html.includes('置顶'), 'missing pinned heading');
     assert.ok(html.includes('Pinned task'), 'missing pinned row');
     const active = html.match(/<section class="dsv-sideGroup" aria-label="活跃会话">([\s\S]*?)<\/section>/)?.[1] ?? '';

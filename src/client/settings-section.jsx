@@ -166,7 +166,8 @@ export function SessionViewSettings({ t }) {
           >
             <option value="default">{t('group.mode.default')}</option>
             <option value="nested">{t('group.mode.nested')}</option>
-            <option value="custom">{t('group.mode.custom')}</option>
+            <option value="session">{t('group.mode.session')}</option>
+            <option value="workspace">{t('group.mode.workspace')}</option>
           </select>
         </Row>
       </Group>

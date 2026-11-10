@@ -1753,6 +1753,8 @@ body.dsv-dragging * { -webkit-user-select: none !important; user-select: none !i
 .dsv-groupChips { display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; }
 .dsv-groupCardActions { display:flex; gap:2px; margin-top:8px; }
 .dsv-groupMembers { display:flex; flex-direction:column; gap:4px; max-height:180px; overflow:auto; margin-top:8px; padding-top:6px; border-top:1px solid var(--dsw-alias-border-l4); }
+.dsv-groupMemberFilter { margin-bottom:2px; }
+.dsv-groupMemberMeta { display:block; color:var(--dsw-alias-label-tertiary); font-size:11px; font-style:normal; }
 
 `;
 

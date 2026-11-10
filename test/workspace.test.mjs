@@ -274,7 +274,7 @@ test('flattenWorkspaceGroups keeps parents before children with depth', () => {
 test('workspace group prefs break cycles and drop stale assignments', () => {
   resetPrefs();
   setPrefs({
-    workspaceGroupMode: 'custom',
+    workspaceGroupMode: 'workspace',
     workspaceGroups: [
       { id: 'a', name: 'A', parentId: 'b' },
       { id: 'b', name: 'B', parentId: 'a' },
@@ -283,10 +283,29 @@ test('workspace group prefs break cycles and drop stale assignments', () => {
     workspaceAssignments: { w1: 'a', w2: 'missing' },
   });
   const prefs = getPrefs();
-  assert.equal(prefs.workspaceGroupMode, 'custom');
+  assert.equal(prefs.workspaceGroupMode, 'workspace');
   assert.equal(prefs.workspaceGroups.find((group) => group.id === 'a').parentId, null);
   assert.equal(prefs.workspaceGroups.find((group) => group.id === 'c').parentId, null);
   assert.deepEqual(Object.keys(prefs.workspaceAssignments), ['w1']);
   assert.equal(flattenWorkspaceGroups(prefs.workspaceGroups).length, 3);
+  resetPrefs();
+});
+
+test('session group prefs validate groups, assignments and legacy mode', () => {
+  resetPrefs();
+  setPrefs({
+    workspaceGroupMode: 'session',
+    sessionGroups: [
+      { id: 's1', name: 'S1', parentId: null },
+      { id: 's2', name: 'S2', parentId: 's1' },
+    ],
+    sessionAssignments: { run1: 's2', run2: 'missing' },
+  });
+  const prefs = getPrefs();
+  assert.equal(prefs.workspaceGroupMode, 'session');
+  assert.equal(prefs.sessionGroups.length, 2);
+  assert.deepEqual(Object.keys(prefs.sessionAssignments), ['run1']);
+  setPrefs({ workspaceGroupMode: 'custom' });
+  assert.equal(getPrefs().workspaceGroupMode, 'workspace', 'legacy custom mode maps to workspace groups');
   resetPrefs();
 });

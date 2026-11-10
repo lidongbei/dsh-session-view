@@ -36,6 +36,7 @@ import { requestPanelIntent } from './panel-intent.js';
 import { ConfirmDialog, Dialog, PromptDialog } from './dialog.jsx';
 import { FocusBar, FocusDialog, FocusMembersDialog, groupLabel, memberSummary } from './focus-mode.jsx';
 import { groupDisplayName, WorkspaceGroupsDialog } from './workspace-groups.jsx';
+import { SessionGroupsDialog } from './session-groups.jsx';
 import { STYLES } from './styles.js';
 import { ActivityIcon, ArchiveIcon, ChevronDownIcon, ChevronRightIcon, ClockIcon, FolderIcon, LayoutIcon, PinIcon, PlusIcon, RestoreIcon, SearchIcon, SessionViewIcon, TargetIcon, TrashIcon, ChevronsUpIcon, ChevronsDownIcon } from './icons.jsx';
 
@@ -340,7 +341,39 @@ export function SidebarWorkspacePane({
       prefs.sort === 'manual' ? applyFamilyOrder(list, prefs.manualOrder[key]) : sortFamilies(list, byUpdated)
     );
     const mode = prefs.workspaceGroupMode ?? (prefs.nestWorkspaces ? 'nested' : 'default');
-    if (mode === 'custom') {
+    if (mode === 'session') {
+      const flattened = flattenWorkspaceGroups(prefs.sessionGroups);
+      const byGroup = new Map(flattened.map((group) => [group.id, []]));
+      const ungrouped = [];
+      for (const row of rows) {
+        const groupId = prefs.sessionAssignments?.[row.session.id];
+        if (groupId && byGroup.has(groupId)) byGroup.get(groupId).push(row);
+        else ungrouped.push(row);
+      }
+      const sections = flattened.map((group, index) => ({
+        key: `sg:${group.id}`,
+        label: groupDisplayName(t, group, index),
+        depth: group.depth,
+        custom: true,
+        sessionGroup: true,
+        groupId: group.id,
+        workspace: null,
+        rows: sortGroup(byGroup.get(group.id) ?? [], group.id),
+      }));
+      if (ungrouped.length > 0) {
+        sections.push({
+          key: 'sg:__none',
+          label: t('group.ungrouped'),
+          depth: 0,
+          custom: true,
+          sessionGroup: true,
+          workspace: null,
+          rows: sortGroup(ungrouped, '__none'),
+        });
+      }
+      return sections;
+    }
+    if (mode === 'workspace') {
       const flattened = flattenWorkspaceGroups(prefs.workspaceGroups);
       const byGroup = new Map(flattened.map((group) => [group.id, []]));
       const ungrouped = [];
@@ -385,10 +418,21 @@ export function SidebarWorkspacePane({
       prefs.workspaceGroupMode,
       prefs.workspaceGroups,
       prefs.workspaceAssignments,
+      prefs.sessionGroups,
+      prefs.sessionAssignments,
       prefs.nestWorkspaces,
       prefs.sort,
       prefs.manualOrder,
     ],
+  );
+
+  const sessionGroupItems = useMemo(
+    () => annotated.map((row) => ({
+      id: row.session.id,
+      title: row.session.blank ? t('row.newSession') : (sessionTitle(row.session) || row.session.id),
+      workspace: row.workspace ? workspaceLabel(row.workspace) : t('workspace.unknown'),
+    })),
+    [annotated, t],
   );
 
   const archived = useMemo(() => {
@@ -657,7 +701,7 @@ export function SidebarWorkspacePane({
     <>
       {contextWorkspaceFilterEntry()}
       <span className="dsv-menuDivider" role="separator" />
-      {['default', 'nested', 'custom'].map((mode) => (
+      {['default', 'nested', 'session', 'workspace'].map((mode) => (
         <button
           key={mode}
           type="button"
@@ -674,9 +718,16 @@ export function SidebarWorkspacePane({
       <button
         type="button"
         role="menuitem"
+        onClick={() => { closeMenus(); setDialog({ kind: 'sessionGroups' }); }}
+      >
+        {t('group.manage.session')}
+      </button>
+      <button
+        type="button"
+        role="menuitem"
         onClick={() => { closeMenus(); setDialog({ kind: 'workspaceGroups' }); }}
       >
-        {t('group.manage')}
+        {t('group.manage.workspace')}
       </button>
     </>
   );
@@ -688,7 +739,21 @@ export function SidebarWorkspacePane({
         role="menuitem"
         onClick={() => { closeMenus(); setDialog({ kind: 'workspaceGroups' }); }}
       >
-        {t('group.manage')}
+        {t('group.manage.workspace')}
+      </button>
+      <span className="dsv-menuDivider" role="separator" />
+      {contextWorkspaceFilterEntry()}
+    </>
+  );
+
+  const contextSessionGroupItems = () => (
+    <>
+      <button
+        type="button"
+        role="menuitem"
+        onClick={() => { closeMenus(); setDialog({ kind: 'sessionGroups' }); }}
+      >
+        {t('group.manage.session')}
       </button>
       <span className="dsv-menuDivider" role="separator" />
       {contextWorkspaceFilterEntry()}
@@ -745,6 +810,9 @@ export function SidebarWorkspacePane({
   const contextWorkspaceGroup = contextMenu?.kind === 'workspaceGroup'
     ? prefs.workspaceGroups.find((group) => group.id === contextMenu.id) ?? null
     : null;
+  const contextSessionGroup = contextMenu?.kind === 'sessionGroup'
+    ? prefs.sessionGroups.find((group) => group.id === contextMenu.id) ?? null
+    : null;
   const contextItems = contextRow
     ? contextSessionItems(contextRow, contextMenu.archived)
     : contextMenu?.kind === 'workspaceFilter'
@@ -753,11 +821,13 @@ export function SidebarWorkspacePane({
         ? contextWorkspaceSectionItems()
         : contextWorkspaceGroup
           ? contextWorkspaceGroupItems(contextWorkspaceGroup)
-          : contextWorkspace
-            ? contextWorkspaceItems(contextWorkspace)
-            : contextFocus
-              ? contextFocusItems(contextFocus)
-              : null;
+          : contextSessionGroup
+            ? contextSessionGroupItems(contextSessionGroup)
+            : contextWorkspace
+              ? contextWorkspaceItems(contextWorkspace)
+              : contextFocus
+                ? contextFocusItems(contextFocus)
+                : null;
 
   const sectionHead = ({ key, label, count, icon = null, collapsed, extra = null, onContextMenu = undefined }) => (
     <div className="dsv-sideGroupHead dsv-sideSectionHead" onContextMenu={onContextMenu}>
@@ -898,7 +968,7 @@ export function SidebarWorkspacePane({
           event.stopPropagation();
           setMenu(null);
           setContextMenu({
-            kind: custom ? 'workspaceGroup' : 'workspace',
+            kind: custom ? (group.sessionGroup ? 'sessionGroup' : 'workspaceGroup') : 'workspace',
             id: custom ? group.groupId : key,
             x: event.clientX,
             y: event.clientY,
@@ -1507,6 +1577,16 @@ export function SidebarWorkspacePane({
           t={t}
           prefs={prefs}
           workspaces={workspaces}
+          onChange={(patch) => setPrefs(patch)}
+          onClose={() => setDialog(null)}
+        />
+      )}
+
+      {dialog?.kind === 'sessionGroups' && (
+        <SessionGroupsDialog
+          t={t}
+          prefs={prefs}
+          sessions={sessionGroupItems}
           onChange={(patch) => setPrefs(patch)}
           onClose={() => setDialog(null)}
         />

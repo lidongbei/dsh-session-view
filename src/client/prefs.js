@@ -29,15 +29,19 @@ export const DEFAULT_PREFS = Object.freeze({
   sort: 'updated',
   nestWorkspaces: true,
   /**
-   * How the "工作区会话" section arranges workspaces:
+   * How the "工作区会话" section arranges rows:
    * - default: one flat section per workspace in registry order
-   * - nested: path-based tree
-   * - custom: user-managed multi-level groups
+   * - nested: path-based workspace tree
+   * - session: user-managed multi-level session groups
+   * - workspace: user-managed multi-level workspace groups
    */
   workspaceGroupMode: 'nested',
   workspaceGroups: Object.freeze([]),
   /** workspaceId -> workspace group id; a workspace belongs to at most one group. */
   workspaceAssignments: Object.freeze({}),
+  sessionGroups: Object.freeze([]),
+  /** sessionId -> session group id; a session belongs to at most one group. */
+  sessionAssignments: Object.freeze({}),
   manualOrder: Object.freeze({}),
   collapsedGroups: Object.freeze([]),
   focusGroups: Object.freeze([]),
@@ -55,7 +59,7 @@ export const DEFAULT_PREFS = Object.freeze({
 const MODES = new Set(['session', 'native']);
 const ARCHIVED = new Set(['hide', 'show', 'only']);
 const SORTS = new Set(['updated', 'manual']);
-const GROUP_MODES = new Set(['default', 'nested', 'custom']);
+const GROUP_MODES = new Set(['default', 'nested', 'session', 'workspace']);
 
 function sanitizeWorkspaceGroups(input) {
   if (!Array.isArray(input)) return [];
@@ -150,8 +154,11 @@ function sanitize(raw) {
     : [];
   const workspaceGroups = sanitizeWorkspaceGroups(value.workspaceGroups);
   const workspaceAssignments = sanitizeAssignments(value.workspaceAssignments, workspaceGroups);
-  const workspaceGroupMode = GROUP_MODES.has(value.workspaceGroupMode)
-    ? value.workspaceGroupMode
+  const sessionGroups = sanitizeWorkspaceGroups(value.sessionGroups);
+  const sessionAssignments = sanitizeAssignments(value.sessionAssignments, sessionGroups);
+  const rawGroupMode = value.workspaceGroupMode === 'custom' ? 'workspace' : value.workspaceGroupMode;
+  const workspaceGroupMode = GROUP_MODES.has(rawGroupMode)
+    ? rawGroupMode
     : value.nestWorkspaces === false
       ? 'default'
       : DEFAULT_PREFS.workspaceGroupMode;
@@ -178,6 +185,8 @@ function sanitize(raw) {
     workspaceGroupMode,
     workspaceGroups,
     workspaceAssignments,
+    sessionGroups,
+    sessionAssignments,
     manualOrder,
     collapsedGroups,
     focusGroups,
@@ -200,6 +209,8 @@ function fresh() {
     hiddenWorkspaceIds: [],
     workspaceGroups: [],
     workspaceAssignments: {},
+    sessionGroups: [],
+    sessionAssignments: {},
   };
 }
 
