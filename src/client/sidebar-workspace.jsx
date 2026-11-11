@@ -36,7 +36,8 @@ import { addTrashIds, getTrashIds, refreshTrash, subscribeTrash } from './trash-
 import { requestPanelIntent } from './panel-intent.js';
 import { ConfirmDialog, Dialog, PromptDialog } from './dialog.jsx';
 import { FocusBar, FocusDialog, FocusMembersDialog, groupLabel, memberSummary } from './focus-mode.jsx';
-import { groupDisplayName, WorkspaceGroupsDialog } from './workspace-groups.jsx';
+import { createWorkspaceGroupId, descendantIds, groupDisplayName, groupOrderKey, moveGroupInTree } from './workspace-groups.jsx';
+import { GroupCascade } from './group-cascade.jsx';
 import { STYLES } from './styles.js';
 import { ActivityIcon, ArchiveIcon, ChevronDownIcon, ChevronRightIcon, ClockIcon, FolderIcon, LayoutIcon, PinIcon, PlusIcon, RestoreIcon, SearchIcon, SessionViewIcon, TargetIcon, TrashIcon, ChevronsUpIcon, ChevronsDownIcon } from './icons.jsx';
 
@@ -175,6 +176,7 @@ export function SidebarWorkspacePane({
   const trashIds = useSyncExternalStore(subscribeTrash, getTrashIds, getTrashIds);
   const dragRef = useRef(null);
   const workspaceDragRef = useRef(null);
+  const groupDragRef = useRef(null);
 
   const orderWorkspaceGroups = (list, groupId) => {
     const order = prefs.workspaceGroupOrders?.[groupId];
@@ -209,6 +211,48 @@ export function SidebarWorkspacePane({
     }
     orders[orderKey] = base;
     setPrefs({ workspaceAssignments: assignments, workspaceGroupOrders: orders });
+  };
+
+  const moveWorkspaceGroupTo = (groupId, parentId) => {
+    if (!groupId || groupId === parentId) return;
+    const all = prefs.workspaceGroups ?? [];
+    const blocked = new Set([groupId, ...descendantIds(all, groupId)]);
+    if (parentId && blocked.has(parentId)) return;
+    const next = all.map((group) => (group.id === groupId ? { ...group, parentId: parentId ?? null } : group));
+    setPrefs({ workspaceGroups: next });
+  };
+
+  const createWorkspaceGroup = (name, parentId) => {
+    const id = createWorkspaceGroupId();
+    const key = groupOrderKey(parentId);
+    setPrefs({
+      workspaceGroups: [...(prefs.workspaceGroups ?? []), { id, name, parentId: parentId || null }],
+      workspaceGroupOrders: { ...(prefs.workspaceGroupOrders ?? {}), [key]: [...((prefs.workspaceGroupOrders ?? {})[key] ?? []), id] },
+    });
+  };
+
+  const renameWorkspaceGroup = (id, name) => {
+    setPrefs({ workspaceGroups: (prefs.workspaceGroups ?? []).map((group) => (group.id === id ? { ...group, name } : group)) });
+  };
+
+  const deleteWorkspaceGroup = (id) => {
+    const groups = prefs.workspaceGroups ?? [];
+    const target = groups.find((group) => group.id === id);
+    if (!target) return;
+    const removed = new Set([id]);
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const group of groups) {
+        if (group.parentId && removed.has(group.parentId) && !removed.has(group.id)) { removed.add(group.id); changed = true; }
+      }
+    }
+    const nextGroups = groups
+      .filter((group) => !removed.has(group.id))
+      .map((group) => (removed.has(group.parentId) ? { ...group, parentId: target.parentId || null } : group));
+    const assignments = Object.fromEntries(Object.entries(prefs.workspaceAssignments ?? {}).filter(([, groupId]) => !removed.has(groupId)));
+    const orders = Object.fromEntries(Object.entries(prefs.workspaceGroupOrders ?? {}).map(([key, list]) => [key, Array.isArray(list) ? list.filter((entry) => !removed.has(entry)) : list]));
+    setPrefs({ workspaceGroups: nextGroups, workspaceAssignments: assignments, workspaceGroupOrders: orders });
   };
   const searchRef = useRef(null);
   const focusedRef = useRef(null);
@@ -436,12 +480,25 @@ export function SidebarWorkspacePane({
       ];
       return node;
     };
+    const applyGroupOrder = (list, parentId) => {
+      const ids = prefs.workspaceGroupOrders?.[groupOrderKey(parentId)];
+      if (!Array.isArray(ids) || ids.length === 0) return list;
+      const byId = new Map(list.map((entry) => [entry.id, entry]));
+      const out = [];
+      for (const id of ids) {
+        const entry = byId.get(id);
+        if (entry) { out.push(entry); byId.delete(id); }
+      }
+      for (const entry of list) if (byId.has(entry.id)) out.push(entry);
+      return out;
+    };
     const applyOrder = (node) => {
       node.workspaces = orderWorkspaceGroups(node.workspaces, node.id);
+      node.children = applyGroupOrder(node.children, node.id);
       for (const child of node.children) applyOrder(child);
     };
     for (const node of roots) applyOrder(node);
-    const tree = roots.map(finalize);
+    const tree = applyGroupOrder(roots, null).map(finalize);
     if (ungrouped.workspaces.length > 0) {
       ungrouped.workspaces = orderWorkspaceGroups(ungrouped.workspaces, '__root');
       tree.push(finalize(ungrouped));
@@ -725,9 +782,23 @@ export function SidebarWorkspacePane({
         {t('action.deleteWorkspace')}
       </button>
       <span className="dsv-menuDivider" role="separator" />
+      <GroupCascade
+        t={t}
+        groups={flattenWorkspaceGroups(prefs.workspaceGroups ?? [])}
+        onPick={(groupId) => { closeMenus(); assignWorkspaceTo(workspace.workspaceId, groupId); }}
+        rootLabel={prefs.workspaceAssignments?.[workspace.workspaceId] ? t('action.removeFromGroup') : undefined}
+        onRoot={() => { closeMenus(); assignWorkspaceTo(workspace.workspaceId, null); }}
+      />
+      <span className="dsv-menuDivider" role="separator" />
       {contextWorkspaceFilterEntry(workspace.workspaceId)}
     </>
   );
+
+  const openWorkspaceGroups = () => {
+    closeMenus();
+    requestPanelIntent({ kind: 'workspaceGroups' });
+    openPanel?.();
+  };
 
   const openWorkspaceFilter = (workspaceId = null) => {
     closeMenus();
@@ -768,7 +839,14 @@ export function SidebarWorkspacePane({
       <button
         type="button"
         role="menuitem"
-        onClick={() => { closeMenus(); setDialog({ kind: 'workspaceGroups' }); }}
+        onClick={() => { closeMenus(); setDialog({ kind: 'workspaceGroupCreate', parentId: null }); }}
+      >
+        {t('group.new')}
+      </button>
+      <button
+        type="button"
+        role="menuitem"
+        onClick={() => openWorkspaceGroups()}
       >
         {t('group.manage.workspace')}
       </button>
@@ -780,12 +858,38 @@ export function SidebarWorkspacePane({
       <button
         type="button"
         role="menuitem"
-        onClick={() => { closeMenus(); setDialog({ kind: 'workspaceGroups' }); }}
+        onClick={() => { closeMenus(); setDialog({ kind: 'workspaceGroupCreate', parentId: contextMenu?.id ?? null }); }}
       >
-        {t('group.manage.workspace')}
+        {t('group.addChild')}
       </button>
-      <span className="dsv-menuDivider" role="separator" />
-      {contextWorkspaceFilterEntry()}
+      <button
+        type="button"
+        role="menuitem"
+        onClick={() => {
+          closeMenus();
+          const group = (prefs.workspaceGroups ?? []).find((entry) => entry.id === contextMenu?.id);
+          setDialog({ kind: 'workspaceGroupRename', id: group?.id, name: group?.name || '' });
+        }}
+      >
+        {t('action.rename')}
+      </button>
+      <button
+        type="button"
+        role="menuitem"
+        className="dsv-danger"
+        onClick={() => { closeMenus(); setDialog({ kind: 'workspaceGroupDelete', id: contextMenu?.id }); }}
+      >
+        {t('dialog.delete')}
+      </button>
+      <div className="dsv-menuDivider" role="separator" />
+      <GroupCascade
+        t={t}
+        groups={flattenWorkspaceGroups(prefs.workspaceGroups ?? [])}
+        excludeIds={[contextMenu?.id, ...descendantIds(prefs.workspaceGroups ?? [], contextMenu?.id)]}
+        onPick={(groupId) => { closeMenus(); moveWorkspaceGroupTo(contextMenu?.id, groupId); }}
+        rootLabel={(prefs.workspaceGroups ?? []).find((group) => group.id === contextMenu?.id)?.parentId ? t('action.moveToRoot') : undefined}
+        onRoot={() => { closeMenus(); moveWorkspaceGroupTo(contextMenu?.id, null); }}
+      />
     </>
   );
 
@@ -1128,22 +1232,58 @@ export function SidebarWorkspacePane({
         <div
           className="dsv-sideGroupHead"
           style={{ paddingLeft: 4 + node.depth * 12 }}
+          draggable
+          onDragStart={(event) => {
+            if (node.ungrouped) return;
+            event.stopPropagation();
+            event.dataTransfer.effectAllowed = 'move';
+            event.dataTransfer.setData('text/plain', node.id);
+            groupDragRef.current = node.id;
+            event.currentTarget.classList.add('dsv-dragSource');
+          }}
+          onDragEnd={(event) => {
+            groupDragRef.current = null;
+            event.currentTarget.classList.remove('dsv-dragSource');
+            clearDragMarks();
+          }}
           onDragOver={(event) => {
+            if (groupDragRef.current) {
+              event.preventDefault();
+              event.stopPropagation();
+              const rect = event.currentTarget.getBoundingClientRect();
+              const ratio = (event.clientY - rect.top) / rect.height;
+              const edge = ratio < 0.25 ? 'before' : ratio > 0.75 ? 'after' : 'inside';
+              event.currentTarget.dataset.dropEdge = edge;
+              event.currentTarget.classList.toggle('dsv-dropBefore', edge === 'before');
+              event.currentTarget.classList.toggle('dsv-dropAfter', edge === 'after');
+              event.currentTarget.classList.toggle('dsv-dropTarget', edge === 'inside');
+              return;
+            }
             const from = workspaceDragRef.current;
-            if (!from || !groupMode || groupMode !== 'workspace') return;
+            if (!from || groupMode !== 'workspace') return;
             event.preventDefault();
             event.stopPropagation();
             event.currentTarget.classList.add('dsv-dropTarget');
           }}
           onDragLeave={(event) => {
             if (event.currentTarget.contains(event.relatedTarget)) return;
-            event.currentTarget.classList.remove('dsv-dropTarget');
+            event.currentTarget.classList.remove('dsv-dropTarget', 'dsv-dropBefore', 'dsv-dropAfter');
           }}
           onDrop={(event) => {
-            const from = workspaceDragRef.current;
-            if (!from) return;
             event.preventDefault();
             event.stopPropagation();
+            const edge = event.currentTarget.dataset.dropEdge || 'inside';
+            delete event.currentTarget.dataset.dropEdge;
+            if (groupDragRef.current) {
+              const fromGroup = groupDragRef.current;
+              groupDragRef.current = null;
+              const result = moveGroupInTree(prefs.workspaceGroups ?? [], prefs.workspaceGroupOrders ?? {}, fromGroup, node.id, edge);
+              clearDragMarks();
+              if (result) setPrefs({ workspaceGroups: result.groups, workspaceGroupOrders: result.orders });
+              return;
+            }
+            const from = workspaceDragRef.current;
+            if (!from) return;
             workspaceDragRef.current = null;
             clearDragMarks();
             assignWorkspaceTo(from, node.id, null);
@@ -1715,22 +1855,64 @@ export function SidebarWorkspacePane({
         />
       )}
 
+      {dialog?.kind === 'workspaceGroupCreate' && (
+        <PromptDialog
+          t={t}
+          title={t('group.new')}
+          label={t('group.namePlaceholder')}
+          initial=""
+          busy={busy}
+          onClose={() => setDialog(null)}
+          onSubmit={(value) => {
+            const parentId = dialog.parentId || null;
+            setDialog(null);
+            createWorkspaceGroup(value, parentId);
+          }}
+        />
+      )}
+
+      {dialog?.kind === 'workspaceGroupRename' && (
+        <PromptDialog
+          t={t}
+          title={t('action.rename')}
+          label={t('group.namePlaceholder')}
+          initial={dialog.name || ''}
+          busy={busy}
+          onClose={() => setDialog(null)}
+          onSubmit={(value) => {
+            const id = dialog.id;
+            setDialog(null);
+            renameWorkspaceGroup(id, value);
+          }}
+        />
+      )}
+
+      {dialog?.kind === 'workspaceGroupDelete' && (() => {
+        const group = (prefs.workspaceGroups ?? []).find((entry) => entry.id === dialog.id);
+        if (!group) return null;
+        return (
+          <ConfirmDialog
+            t={t}
+            title={t('group.delete.title')}
+            body={t('group.delete.body', { name: groupDisplayName(t, group, 0) })}
+            confirmKey="dialog.delete"
+            busy={busy}
+            onClose={() => setDialog(null)}
+            onConfirm={() => {
+              const id = dialog.id;
+              setDialog(null);
+              deleteWorkspaceGroup(id);
+            }}
+          />
+        );
+      })()}
+
       {dialog?.kind === 'focus' && (
         <FocusDialog
           t={t}
           prefs={prefs}
           workspaces={workspaces}
           initialCreating={dialog.creating === true}
-          onChange={(patch) => setPrefs(patch)}
-          onClose={() => setDialog(null)}
-        />
-      )}
-
-      {dialog?.kind === 'workspaceGroups' && (
-        <WorkspaceGroupsDialog
-          t={t}
-          prefs={prefs}
-          workspaces={workspaces}
           onChange={(patch) => setPrefs(patch)}
           onClose={() => setDialog(null)}
         />

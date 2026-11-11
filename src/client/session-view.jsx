@@ -9,6 +9,7 @@ import {
   filterRows,
   formatRelativeTime,
   flattenWorkspaceGroups,
+  groupStatus,
   isStaleSessionError,
   matchesQuery,
   pendingLabelKey,
@@ -19,6 +20,7 @@ import {
 } from './logic.js';
 import { addToTrash, fetchTrash, purgeTrash, restoreTrash } from './api.js';
 import { SessionGroupsDialog } from './session-groups.jsx';
+import { WorkspaceGroupsDialog } from './workspace-groups.jsx';
 import { getPrefs, setPrefs, subscribePrefs } from './prefs.js';
 import { consumePanelIntent, getPanelIntent, subscribePanelIntent } from './panel-intent.js';
 import { addTrashIds, removeTrashIds, setTrashItems } from './trash-store.js';
@@ -34,7 +36,7 @@ import {
 } from './icons.jsx';
 
 const ALL = 'all';
-const TABS = ['active', 'archived', 'trash', 'sessionGroups', 'workspaces'];
+const TABS = ['active', 'archived', 'trash', 'sessionGroups', 'workspaceGroups', 'workspaces'];
 
 const CONFIRM_COPY = {
   archive: { title: 'confirm.archive.title', body: 'confirm.archive.body', tone: 'normal' },
@@ -94,9 +96,15 @@ export function SessionView({
   const panelIntent = useSyncExternalStore(subscribePanelIntent, getPanelIntent, () => null);
 
   useEffect(() => {
-    if (!panelIntent || panelIntent.kind !== 'workspaceFilter') return;
-    setTab('workspaces');
-    if (panelIntent.workspaceId) setWorkspaceId(panelIntent.workspaceId);
+    if (!panelIntent) return;
+    if (panelIntent.kind === 'workspaceFilter') {
+      setTab('workspaces');
+      if (panelIntent.workspaceId) setWorkspaceId(panelIntent.workspaceId);
+    } else if (panelIntent.kind === 'workspaceGroups') {
+      setTab('workspaceGroups');
+    } else {
+      return;
+    }
     consumePanelIntent();
   }, [panelIntent]);
 
@@ -733,6 +741,7 @@ export function SessionView({
     archived: archived.length,
     trash: trashed.length,
     sessionGroups: sessionGroupTree.length,
+    workspaceGroups: prefs.workspaceGroups?.length ?? 0,
     workspaces: workspaces?.items?.length ?? 0,
   };
 
@@ -857,6 +866,10 @@ export function SessionView({
       onDragEnd={(event) => {
         sessionDragRef.current = null;
         event.currentTarget.classList.remove('dsv-dragSource');
+      }}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        setSessionMenu({ itemId: item.id, x: event.clientX, y: event.clientY });
       }}
     >
       <button type="button" className="dsv-groupSessionOpen" onClick={() => openSession(item.id)} title={item.title}>
@@ -986,6 +999,23 @@ export function SessionView({
     </section>
   );
 
+  const workspaceGroupsPage = (
+    <section className="dsv-groupsPage dsv-groupsEmbedded">
+      <div className="dsv-groupsHead">
+        <h2 className="dsv-groupsTitle">{t('groups.workspaceTitle')}</h2>
+        <p className="dsv-groupsHint">{t('groups.workspaceHint')}</p>
+      </div>
+      <WorkspaceGroupsDialog
+        t={t}
+        prefs={prefs}
+        workspaces={workspaces}
+        onChange={setPrefs}
+        onClose={() => {}}
+        embedded
+      />
+    </section>
+  );
+
   const workspaceFilterPage = (
     <section className="dsv-wsPage" aria-label={t('tab.workspaces')}>
       <div className="dsv-wsIntro">
@@ -1105,7 +1135,9 @@ export function SessionView({
                 ? t('counts.workspaces', { n: tabCounts.workspaces })
                 : tab === 'sessionGroups'
                   ? t('counts.groups', { n: tabCounts.sessionGroups })
-                  : t('counts.summary', { n: tabCounts[tab] })}
+                  : tab === 'workspaceGroups'
+                    ? t('counts.groups', { n: tabCounts.workspaceGroups })
+                    : t('counts.summary', { n: tabCounts[tab] })}
             </span>
           )}
         </header>
@@ -1126,7 +1158,7 @@ export function SessionView({
           ))}
         </nav>
 
-        {tab !== 'workspaces' && tab !== 'sessionGroups' && (
+        {tab !== 'workspaces' && tab !== 'sessionGroups' && tab !== 'workspaceGroups' && (
         <div className="dsv-toolbar">
           <div className="dsv-search">
             <span className="dsv-searchIcon">
@@ -1216,7 +1248,7 @@ export function SessionView({
           </div>
         )}
 
-        {manage && tab !== 'workspaces' && tab !== 'sessionGroups' && (
+        {manage && tab !== 'workspaces' && tab !== 'sessionGroups' && tab !== 'workspaceGroups' && (
           <div className="dsv-batch">
             <span className="dsv-batchText">{t('select.count', { n: selected.length })}</span>
             <button
@@ -1313,6 +1345,8 @@ export function SessionView({
           workspaceFilterPage
         ) : tab === 'sessionGroups' ? (
           sessionGroupsPage
+        ) : tab === 'workspaceGroups' ? (
+          workspaceGroupsPage
         ) : empty ? (
           <div className="dsv-empty">{emptyNode}</div>
         ) : (

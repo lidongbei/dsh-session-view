@@ -201,16 +201,16 @@ export function SessionGroupsDialog({ t, prefs, sessions = [], onChange, onClose
                 {members.length === 0 && <span className="dsv-focusChipEmpty">{t('group.empty')}</span>}
               </div>
               <div className="dsv-groupCardActions">
-                <button type="button" className="dsv-sideTextBtn" onClick={() => { setEditingId(editingId === group.id ? '' : group.id); }}>
+                <button type="button" className="dsv-btn dsv-btnSm" onClick={() => { setEditingId(editingId === group.id ? '' : group.id); }}>
                   {t('group.members.sessions')}
                 </button>
-                <button type="button" className="dsv-sideTextBtn" onClick={() => { setCreating(true); setNewParent(group.id); }}>
+                <button type="button" className="dsv-btn dsv-btnSm" onClick={() => { setCreating(true); setNewParent(group.id); }}>
                   {t('group.addChild')}
                 </button>
-                <button type="button" className="dsv-sideTextBtn" onClick={() => { setRenamingId(group.id); setRenameValue(group.name); }}>
+                <button type="button" className="dsv-btn dsv-btnSm" onClick={() => { setRenamingId(group.id); setRenameValue(group.name); }}>
                   {t('action.rename')}
                 </button>
-                <button type="button" className="dsv-sideTextBtn dsv-focusDanger" onClick={() => setDeleteId(group.id)}>
+                <button type="button" className="dsv-btn dsv-btnSm" data-tone="danger" onClick={() => setDeleteId(group.id)}>
                   {t('dialog.delete')}
                 </button>
               </div>
