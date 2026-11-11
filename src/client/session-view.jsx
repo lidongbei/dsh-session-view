@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {
   STATUS_LIST,
   annotateRows,
@@ -8,6 +8,7 @@ import {
   countByStatus,
   filterRows,
   formatRelativeTime,
+  flattenWorkspaceGroups,
   isStaleSessionError,
   matchesQuery,
   pendingLabelKey,
@@ -17,6 +18,7 @@ import {
   workspaceLabel,
 } from './logic.js';
 import { addToTrash, fetchTrash, purgeTrash, restoreTrash } from './api.js';
+import { SessionGroupsDialog } from './session-groups.jsx';
 import { getPrefs, setPrefs, subscribePrefs } from './prefs.js';
 import { consumePanelIntent, getPanelIntent, subscribePanelIntent } from './panel-intent.js';
 import { addTrashIds, removeTrashIds, setTrashItems } from './trash-store.js';
@@ -24,6 +26,7 @@ import { STYLES } from './styles.js';
 import {
   ArchiveIcon,
   ChevronDownIcon,
+  ChevronRightIcon,
   PinIcon,
   RestoreIcon,
   SearchIcon,
@@ -31,7 +34,7 @@ import {
 } from './icons.jsx';
 
 const ALL = 'all';
-const TABS = ['active', 'archived', 'trash', 'workspaces'];
+const TABS = ['active', 'archived', 'trash', 'sessionGroups', 'workspaces'];
 
 const CONFIRM_COPY = {
   archive: { title: 'confirm.archive.title', body: 'confirm.archive.body', tone: 'normal' },
@@ -85,6 +88,9 @@ export function SessionView({
   const [toast, setToast] = useState(null);
   const [trash, setTrash] = useState({ state: 'idle', items: [], error: null });
   const [staleIds, setStaleIds] = useState(() => new Set());
+  const [groupsQuery, setGroupsQuery] = useState('');
+  const [groupDialog, setGroupDialog] = useState(false);
+  const [expandedSessionGroups, setExpandedSessionGroups] = useState(() => new Set());
   const panelIntent = useSyncExternalStore(subscribePanelIntent, getPanelIntent, () => null);
 
   useEffect(() => {
@@ -94,6 +100,10 @@ export function SessionView({
     consumePanelIntent();
   }, [panelIntent]);
 
+  const sessionGroupTree = useMemo(
+    () => flattenWorkspaceGroups(prefs.sessionGroups ?? []),
+    [prefs.sessionGroups],
+  );
   const hiddenWorkspaceIds = prefs.hiddenWorkspaceIds ?? [];
   const hiddenWorkspaceSet = useMemo(() => new Set(hiddenWorkspaceIds), [hiddenWorkspaceIds]);
   const filterWorkspaceItems = useMemo(
@@ -159,6 +169,31 @@ export function SessionView({
     const visible = prefs.showSubagents ? annotatedRows : annotatedRows.filter((row) => row.session.origin !== 'subagent');
     return visible.filter((row) => !trashedIds.has(row.session.id) && !staleIds.has(row.session.id));
   }, [sessions, statuses, workspaces, prefs.showSubagents, trashedIds, staleIds]);
+
+  const sessionGroupItems = useMemo(
+    () => annotated.map((row) => ({
+      id: row.session.id,
+      title: row.session.blank ? t('row.newSession') : (row.title || row.session.id),
+      workspace: row.workspace ? workspaceLabel(row.workspace) : t('workspace.unknown'),
+      status: row.status,
+    })),
+    [annotated, t],
+  );
+  const sessionAssignments = prefs.sessionAssignments ?? {};
+  const groupsFilter = groupsQuery.trim().toLowerCase();
+  const assignSession = (sessionId, groupId) => {
+    const next = { ...sessionAssignments };
+    if (groupId) next[sessionId] = groupId;
+    else delete next[sessionId];
+    setPrefs({ sessionAssignments: next });
+  };
+  const filteredGroupItems = sessionGroupItems.filter((item) => {
+    if (!groupsFilter) return true;
+    return item.title.toLowerCase().includes(groupsFilter)
+      || item.workspace.toLowerCase().includes(groupsFilter)
+      || sessionGroupTree.some((group) => group.id === sessionAssignments[item.id]
+        && String(group.name ?? '').toLowerCase().includes(groupsFilter));
+  });
 
   const scopeRows = useMemo(
     () => filterRows(annotated, { query, workspaceId, status: ALL }),
@@ -671,7 +706,7 @@ export function SessionView({
   const trashWorkspaceSections = buildWorkspaceSections(trashed);
 
   const sectionList =
-    tab === 'workspaces'
+    tab === 'workspaces' || tab === 'sessionGroups'
       ? []
       : tab === 'archived'
       ? groupWorkspaces
@@ -697,6 +732,7 @@ export function SessionView({
     active: annotated.length,
     archived: archived.length,
     trash: trashed.length,
+    sessionGroups: sessionGroupTree.length,
     workspaces: workspaces?.items?.length ?? 0,
   };
 
@@ -743,6 +779,212 @@ export function SessionView({
         : tab === 'archived'
           ? archived.length === 0
           : trashed.length === 0;
+
+  const sessionDragRef = useRef(null);
+
+  const orderSessionItems = (items, orderKey) => {
+    const order = prefs.sessionGroupOrders?.[orderKey];
+    if (!order?.length) return items;
+    const rank = new Map(order.map((id, index) => [id, index]));
+    return [...items].sort((a, b) => {
+      const ai = rank.has(a.id) ? rank.get(a.id) : Number.MAX_SAFE_INTEGER;
+      const bi = rank.has(b.id) ? rank.get(b.id) : Number.MAX_SAFE_INTEGER;
+      return ai - bi;
+    });
+  };
+
+  const assignSessionTo = (sessionId, groupId, beforeId, after = false) => {
+    if (!sessionId) return;
+    const assignments = { ...(prefs.sessionAssignments ?? {}) };
+    if (groupId) assignments[sessionId] = groupId;
+    else delete assignments[sessionId];
+    const orderKey = groupId ?? '__root';
+    const orders = { ...(prefs.sessionGroupOrders ?? {}) };
+    for (const key of Object.keys(orders)) {
+      if (key !== orderKey && orders[key]?.includes(sessionId)) {
+        orders[key] = orders[key].filter((id) => id !== sessionId);
+      }
+    }
+    const base = (orders[orderKey] ?? []).filter((id) => id !== sessionId);
+    if (beforeId && beforeId !== sessionId) {
+      const at = base.indexOf(beforeId);
+      if (at >= 0) base.splice(after ? at + 1 : at, 0, sessionId);
+      else base.push(sessionId);
+    } else {
+      base.push(sessionId);
+    }
+    orders[orderKey] = base;
+    setPrefs({ sessionAssignments: assignments, sessionGroupOrders: orders });
+  };
+
+  const collapsedSessionGroups = collapsedSections;
+  const sessionGroupSections = sessionGroupTree.map((group) => ({
+    ...group,
+    items: orderSessionItems(filteredGroupItems.filter((item) => sessionAssignments[item.id] === group.id), group.id),
+  }));
+  const ungroupedSessionItems = orderSessionItems(filteredGroupItems.filter(
+    (item) => !item.id || !sessionGroupTree.some((group) => group.id === sessionAssignments[item.id]),
+  ), '__root');
+
+  const renderGroupSessionRow = (item) => (
+    <div
+      className="dsv-groupSession"
+      key={item.id}
+      draggable
+      onDragStart={(event) => {
+        sessionDragRef.current = item.id;
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', item.id);
+        event.currentTarget.classList.add('dsv-dragSource');
+      }}
+      onDragOver={(event) => {
+        if (!sessionDragRef.current || sessionDragRef.current === item.id) return;
+        event.preventDefault();
+      }}
+      onDrop={(event) => {
+        const from = sessionDragRef.current;
+        if (!from || from === item.id) return;
+        event.preventDefault();
+        event.stopPropagation();
+        sessionDragRef.current = null;
+        const groupId = sessionGroupTree.some((group) => group.id === sessionAssignments[item.id])
+          ? sessionAssignments[item.id]
+          : null;
+        const rect = event.currentTarget.getBoundingClientRect();
+        assignSessionTo(from, groupId, item.id, event.clientY > rect.top + rect.height / 2);
+        event.currentTarget.classList.remove('dsv-dragSource');
+      }}
+      onDragEnd={(event) => {
+        sessionDragRef.current = null;
+        event.currentTarget.classList.remove('dsv-dragSource');
+      }}
+    >
+      <button type="button" className="dsv-groupSessionOpen" onClick={() => openSession(item.id)} title={item.title}>
+        <span className="dsv-groupSessionTitle">{item.title}</span>
+        <span className="dsv-groupSessionMeta">{item.workspace}</span>
+      </button>
+      <select
+        className="dsv-select dsv-groupSessionSelect"
+        value={sessionAssignments[item.id] ?? ''}
+        aria-label={t('groups.assign')}
+        onChange={(event) => assignSession(item.id, event.target.value)}
+      >
+        <option value="">{t('group.ungrouped')}</option>
+        {sessionGroupTree.map((group) => (
+          <option key={group.id} value={group.id}>
+            {group.depth > 0 ? `${'—'.repeat(group.depth)} ` : ''}{group.name}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+
+  const renderSessionGroupBlock = (key, label, depth, items, groupId = null) => {
+    const collapsed = collapsedSessionGroups.has(key);
+    return (
+      <div
+        className="dsv-groupBlock"
+        key={key}
+        onDragOver={(event) => {
+          if (!sessionDragRef.current) return;
+          event.preventDefault();
+          event.currentTarget.classList.add('dsv-dropTarget');
+        }}
+        onDragLeave={(event) => {
+          if (event.currentTarget.contains(event.relatedTarget)) return;
+          event.currentTarget.classList.remove('dsv-dropTarget');
+        }}
+        onDrop={(event) => {
+          const from = sessionDragRef.current;
+          if (!from) return;
+          event.preventDefault();
+          event.stopPropagation();
+          event.currentTarget.classList.remove('dsv-dropTarget');
+          sessionDragRef.current = null;
+          assignSessionTo(from, groupId, null);
+        }}
+      >
+        <button
+          type="button"
+          className="dsv-groupBlockHead"
+          aria-expanded={!collapsed}
+          style={{ paddingLeft: 8 + depth * 16 }}
+          onClick={() => toggleSection(key)}
+        >
+          <span className="dsv-sectionChevron" data-collapsed={collapsed || undefined}>
+            <ChevronRightIcon size={12} />
+          </span>
+          <span className="dsv-groupBlockName">{label}</span>
+          {(() => {
+            const status = groupStatus(items);
+            return status ? (
+              <span className={`dsv-groupStatusMark dsv-groupStatusMark--${status}`} title={t(statusLabelKey(status))}>
+                <span className="dsv-dot" data-status={status} />
+              </span>
+            ) : null;
+          })()}
+          <span className="dsv-groupBlockCount">{items.length}</span>
+        </button>
+        {!collapsed && (
+          items.length === 0
+            ? <p className="dsv-groupEmpty">{t('groups.empty')}</p>
+            : items.map(renderGroupSessionRow)
+        )}
+      </div>
+    );
+  };
+
+  const sessionGroupsPage = (
+    <section className="dsv-groupsPage" aria-label={t('tab.sessionGroups')}>
+      <div className="dsv-groupsHead">
+        <div>
+          <h2 className="dsv-groupsTitle">{t('groups.title')}</h2>
+          <p className="dsv-groupsHint">{t('groups.hint')}</p>
+        </div>
+        <button type="button" className="dsv-btn" onClick={() => setGroupDialog(true)}>
+          {t('groups.manage')}
+        </button>
+      </div>
+      <input
+        className="dsv-input dsv-groupsSearch"
+        value={groupsQuery}
+        placeholder={t('groups.search')}
+        aria-label={t('groups.search')}
+        onChange={(event) => setGroupsQuery(event.target.value)}
+      />
+      <div className="dsv-groupsList">
+        {sessionGroupSections.map((group) => renderSessionGroupBlock(`g:${group.id}`, group.name, group.depth, group.items, group.id))}
+        {true && (
+          <div
+            className={`dsv-groupRootRows${ungroupedSessionItems.length === 0 ? ' dsv-groupRootEmpty' : ''}`}
+            aria-label={t('group.ungrouped')}
+            onDragOver={(event) => {
+              if (!sessionDragRef.current) return;
+              event.preventDefault();
+              event.currentTarget.classList.add('dsv-dropTarget');
+            }}
+            onDragLeave={(event) => {
+              if (event.currentTarget.contains(event.relatedTarget)) return;
+              event.currentTarget.classList.remove('dsv-dropTarget');
+            }}
+            onDrop={(event) => {
+              const from = sessionDragRef.current;
+              if (!from) return;
+              event.preventDefault();
+              event.currentTarget.classList.remove('dsv-dropTarget');
+              sessionDragRef.current = null;
+              assignSessionTo(from, null, null);
+            }}
+          >
+            {ungroupedSessionItems.map(renderGroupSessionRow)}
+          </div>
+        )}
+        {sessionGroupTree.length === 0 && ungroupedSessionItems.length === 0 && (
+          <p className="dsv-groupEmpty">{t('groups.empty')}</p>
+        )}
+      </div>
+    </section>
+  );
 
   const workspaceFilterPage = (
     <section className="dsv-wsPage" aria-label={t('tab.workspaces')}>
@@ -861,7 +1103,9 @@ export function SessionView({
             <span className="dsv-total" aria-live="polite">
               {tab === 'workspaces'
                 ? t('counts.workspaces', { n: tabCounts.workspaces })
-                : t('counts.summary', { n: tabCounts[tab] })}
+                : tab === 'sessionGroups'
+                  ? t('counts.groups', { n: tabCounts.sessionGroups })
+                  : t('counts.summary', { n: tabCounts[tab] })}
             </span>
           )}
         </header>
@@ -882,7 +1126,7 @@ export function SessionView({
           ))}
         </nav>
 
-        {tab !== 'workspaces' && (
+        {tab !== 'workspaces' && tab !== 'sessionGroups' && (
         <div className="dsv-toolbar">
           <div className="dsv-search">
             <span className="dsv-searchIcon">
@@ -972,7 +1216,7 @@ export function SessionView({
           </div>
         )}
 
-        {manage && tab !== 'workspaces' && (
+        {manage && tab !== 'workspaces' && tab !== 'sessionGroups' && (
           <div className="dsv-batch">
             <span className="dsv-batchText">{t('select.count', { n: selected.length })}</span>
             <button
@@ -1067,6 +1311,8 @@ export function SessionView({
 
         {tab === 'workspaces' ? (
           workspaceFilterPage
+        ) : tab === 'sessionGroups' ? (
+          sessionGroupsPage
         ) : empty ? (
           <div className="dsv-empty">{emptyNode}</div>
         ) : (
@@ -1098,6 +1344,16 @@ export function SessionView({
             </div>
           </div>
         </div>
+      )}
+
+      {groupDialog && (
+        <SessionGroupsDialog
+          t={t}
+          prefs={prefs}
+          sessions={sessionGroupItems}
+          onChange={(patch) => setPrefs(patch)}
+          onClose={() => setGroupDialog(false)}
+        />
       )}
 
       {toast && (

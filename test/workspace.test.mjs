@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  groupStatus,
   activeRows,
   applyManualOrder,
   buildCandidates,
@@ -302,10 +303,19 @@ test('session group prefs validate groups, assignments and legacy mode', () => {
     sessionAssignments: { run1: 's2', run2: 'missing' },
   });
   const prefs = getPrefs();
-  assert.equal(prefs.workspaceGroupMode, 'session');
+  assert.equal(prefs.workspaceGroupMode, 'nested', 'legacy session mode falls back to nested');
   assert.equal(prefs.sessionGroups.length, 2);
   assert.deepEqual(Object.keys(prefs.sessionAssignments), ['run1']);
   setPrefs({ workspaceGroupMode: 'custom' });
   assert.equal(getPrefs().workspaceGroupMode, 'workspace', 'legacy custom mode maps to workspace groups');
   resetPrefs();
+});
+
+test('groupStatus aggregates pending over running over done', () => {
+  assert.equal(groupStatus([]), null);
+  assert.equal(groupStatus([{ status: 'idle' }]), null);
+  assert.equal(groupStatus([{ status: 'done' }]), 'done');
+  assert.equal(groupStatus([{ status: 'done' }, { status: 'running' }]), 'running');
+  assert.equal(groupStatus([{ status: 'running' }, { status: 'pending' }]), 'pending');
+  assert.equal(groupStatus([{ status: 'idle', runningChildren: 1 }]), 'running');
 });

@@ -41,6 +41,7 @@ export function SessionGroupsDialog({ t, prefs, sessions = [], onChange, onClose
   const [editingId, setEditingId] = useState('');
   const [deleteId, setDeleteId] = useState('');
   const [filter, setFilter] = useState('');
+  const [memberFilter, setMemberFilter] = useState('');
 
   const setGroups = (next) => onChange({ sessionGroups: next });
 
@@ -87,9 +88,13 @@ export function SessionGroupsDialog({ t, prefs, sessions = [], onChange, onClose
   const membersOf = (groupId) => sessions.filter((session) => assignments[session.id] === groupId);
   const deleting = groups.find((group) => group.id === deleteId);
   const query = filter.trim().toLowerCase();
-  const visibleSessions = query
-    ? sessions.filter((session) => `${session.title} ${session.workspace ?? ''}`.toLowerCase().includes(query))
+  const memberQuery = memberFilter.trim().toLowerCase();
+  const visibleSessions = memberQuery
+    ? sessions.filter((session) => `${session.title} ${session.workspace ?? ''}`.toLowerCase().includes(memberQuery))
     : sessions;
+  const visibleFlattened = flattened.filter((group, index) => !query
+    || groupDisplayName(t, group, index).toLowerCase().includes(query)
+    || membersOf(group.id).some((session) => `${session.title} ${session.workspace ?? ''}`.toLowerCase().includes(query)));
 
   return (
     <Dialog
@@ -149,8 +154,16 @@ export function SessionGroupsDialog({ t, prefs, sessions = [], onChange, onClose
         </div>
       )}
 
+      <input
+        className="dsv-input dsv-groupSearch"
+        placeholder={t('group.searchAll')}
+        aria-label={t('group.searchAll')}
+        value={filter}
+        onChange={(event) => setFilter(event.target.value)}
+      />
       <div className="dsv-groupList">
-        {flattened.map((group, index) => {
+        {visibleFlattened.map((group) => {
+          const index = flattened.findIndex((entry) => entry.id === group.id);
           const members = membersOf(group.id);
           return (
             <article className="dsv-groupCard" key={group.id} style={{ marginLeft: group.depth * 16 }}>
@@ -206,8 +219,8 @@ export function SessionGroupsDialog({ t, prefs, sessions = [], onChange, onClose
                   <input
                     className="dsv-input dsv-groupMemberFilter"
                     placeholder={t('group.sessionFilter')}
-                    value={filter}
-                    onChange={(event) => setFilter(event.target.value)}
+                    value={memberFilter}
+                    onChange={(event) => setMemberFilter(event.target.value)}
                   />
                   {sessions.length === 0 ? (
                     <p className="dsv-sideHint">{t('group.noSessions')}</p>
@@ -231,7 +244,7 @@ export function SessionGroupsDialog({ t, prefs, sessions = [], onChange, onClose
             </article>
           );
         })}
-        {groups.length === 0 && <p className="dsv-sideEmpty">{t('group.emptyList')}</p>}
+        {visibleFlattened.length === 0 && <p className="dsv-sideEmpty">{t('group.emptyList')}</p>}
       </div>
 
       {deleting && (

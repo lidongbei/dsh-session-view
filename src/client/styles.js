@@ -882,6 +882,10 @@ export const STYLES = `
 }
 .dsv-sideCount { flex: none; margin-left: auto; padding-right: 2px; color: var(--dsw-alias-label-tertiary); font-size: 10px; font-variant-numeric: tabular-nums; }
 .dsv-sideActiveMark { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 12px; height: 20px; }
+.dsv-sideStatusMark { display:inline-flex; flex:none; align-items:center; justify-content:center; width:12px; height:20px; }
+.dsv-sideStatusMark .dsv-dot { width:7px; height:7px; }
+.dsv-groupStatusMark { display:inline-flex; flex:none; align-items:center; width:12px; }
+.dsv-groupStatusMark .dsv-dot { width:7px; height:7px; }
 .dsv-sideActiveMark .dsv-dot { width: 7px; height: 7px; }
 .dsv-sideGroupActions { display: flex; flex: none; gap: 2px; opacity: 0; }
 .dsv-sideGroupHead:hover .dsv-sideGroupActions,
@@ -1345,6 +1349,7 @@ body.dsv-dragging * { -webkit-user-select: none !important; user-select: none !i
   padding: 9px 16px;
   border-top: 1px solid var(--dsw-alias-border-l3);
 }
+.dsv-settingRow--plain { min-height: 36px; padding: 6px 16px; }
 .dsv-settingRow--toggle { cursor: pointer; }
 .dsv-settingRow--toggle:hover { background: var(--dsw-alias-interactive-bg-hover); }
 .dsv-settingText { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
@@ -1444,7 +1449,7 @@ body.dsv-dragging * { -webkit-user-select: none !important; user-select: none !i
 }
 .dsv-focusBarBtn:hover { background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-primary); }
 
-.dsv-dialogWide { width: min(520px, 100%); }
+.dsv-dialogWide { width: min(760px, 96vw); max-height: 88vh; }
 .dsv-btnSm { height: 26px; padding: 0 8px; border-radius: 7px; font-size: 11px; }
 
 .dsv-focusStatus {
@@ -1710,7 +1715,7 @@ body.dsv-dragging * { -webkit-user-select: none !important; user-select: none !i
   cursor: pointer;
 }
 .dsv-wsFilterReset:hover { background: var(--dsw-alias-interactive-bg-hover); color: var(--dsw-alias-label-primary); }
-.dsv-menuDivider { height: 1px; margin: 4px 6px; background: var(--dsw-alias-border-l4); }
+.dsv-menuDivider { display:block; height: 1px; margin: 2px 6px; background: var(--dsw-alias-border-l4); }
 
 .dsv-sectionTitleWrap { display:flex; flex-direction:column; gap:1px; min-width:0; text-align:left; }
 .dsv-sectionPath { max-width:min(520px,60vw); overflow:hidden; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:10px; line-height:13px; color:var(--dsw-alias-label-tertiary); text-overflow:ellipsis; white-space:nowrap; }
@@ -1736,6 +1741,8 @@ body.dsv-dragging * { -webkit-user-select: none !important; user-select: none !i
 .dsv-wsFilterPop { position:absolute; top:calc(100% + 6px); right:0; z-index:60; display:flex; flex-direction:column; width:340px; max-height:min(70vh,460px); padding:6px; border:0.5px solid var(--dsw-alias-border-l4); border-radius:12px; background:var(--dsw-alias-bg-base); box-shadow:0 8px 24px rgba(0,0,0,.18); }
 .dsv-wsFilterShow { margin-bottom:4px; border-bottom:1px solid var(--dsw-alias-border-l4); border-radius:8px 8px 0 0; }
 
+.dsv-menuLabel { padding:2px 10px 0; font-size:13px; line-height:18px; color:var(--dsw-alias-label-secondary); cursor:default; }
+.dsv-menu button.dsv-menuChoiceSub { height:24px; padding:0 8px 0 20px; font-size:11px; line-height:24px; }
 .dsv-menuChoice { display:flex; align-items:center; gap:6px; }
 .dsv-menuCheck { width:12px; flex:none; color:var(--dsw-alias-state-business-primary); font-size:11px; line-height:1; }
 .dsv-groupIntro { margin:0 0 8px; }
@@ -1755,6 +1762,32 @@ body.dsv-dragging * { -webkit-user-select: none !important; user-select: none !i
 .dsv-groupMembers { display:flex; flex-direction:column; gap:4px; max-height:180px; overflow:auto; margin-top:8px; padding-top:6px; border-top:1px solid var(--dsw-alias-border-l4); }
 .dsv-groupMemberFilter { margin-bottom:2px; }
 .dsv-groupMemberMeta { display:block; color:var(--dsw-alias-label-tertiary); font-size:11px; font-style:normal; }
+
+
+.dsv-groupsPage { display:flex; flex-direction:column; gap:12px; padding:8px 0 32px; max-width:980px; }
+.dsv-groupsHead { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; }
+.dsv-groupsTitle { margin:0 0 4px; font-size:18px; font-weight:600; color:var(--dsw-alias-label-primary); }
+.dsv-groupsHint { margin:0; font-size:12px; line-height:18px; color:var(--dsw-alias-label-tertiary); }
+.dsv-groupsSearch { width:100%; }
+.dsv-groupsList { display:flex; flex-direction:column; gap:8px; }
+.dsv-groupBlock { border:1px solid var(--dsw-alias-border-l3); border-radius:12px; background:var(--dsw-alias-bg-base); overflow:hidden; }
+.dsv-groupBlockHead { display:flex; align-items:center; gap:8px; width:100%; min-height:42px; padding:0 10px; border:0; background:none; color:var(--dsw-alias-label-primary); font:inherit; cursor:pointer; text-align:left; }
+.dsv-groupBlockHead:hover { background:var(--dsw-alias-interactive-bg-hover); }
+.dsv-groupBlockName { flex:1; min-width:0; font-size:14px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.dsv-groupBlockCount { color:var(--dsw-alias-label-tertiary); font-size:12px; }
+.dsv-groupEmpty { margin:0; padding:8px 14px 12px; color:var(--dsw-alias-label-tertiary); font-size:12px; }
+.dsv-groupRootRows { display:flex; flex-direction:column; border:1px solid var(--dsw-alias-border-l3); border-radius:12px; overflow:hidden; }
+.dsv-groupRootRows .dsv-groupSession:first-child { border-top:0; }
+.dsv-groupRootEmpty { min-height:30px; border-style:dashed; }
+.dsv-groupBlock.dsv-dropTarget, .dsv-groupRootRows.dsv-dropTarget { border-color: var(--dsw-alias-state-business-primary); }
+.dsv-groupSession { display:flex; align-items:center; gap:10px; padding:5px 12px; border-top:1px solid var(--dsw-alias-border-l4); }
+.dsv-groupSession:hover { background:var(--dsw-alias-interactive-bg-hover); }
+.dsv-groupSessionOpen { display:flex; align-items:baseline; gap:8px; flex:1; min-width:0; padding:2px 0; border:0; background:none; color:var(--dsw-alias-label-primary); font:inherit; text-align:left; cursor:pointer; }
+.dsv-groupSessionTitle { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; }
+.dsv-groupSessionMeta { color:var(--dsw-alias-label-tertiary); font-size:11px; white-space:nowrap; }
+.dsv-groupSessionSelect { width:170px; height:28px; font-size:12px; }
+.dsv-groupSearch { margin:0 0 4px; }
+.dsv-dialogWide .dsv-groupList { max-height:52vh; overflow:auto; padding-right:2px; }
 
 `;
 

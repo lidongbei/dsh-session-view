@@ -39,6 +39,8 @@ export const DEFAULT_PREFS = Object.freeze({
   workspaceGroups: Object.freeze([]),
   /** workspaceId -> workspace group id; a workspace belongs to at most one group. */
   workspaceAssignments: Object.freeze({}),
+  workspaceGroupOrders: Object.freeze({}),
+  sessionGroupOrders: Object.freeze({}),
   sessionGroups: Object.freeze([]),
   /** sessionId -> session group id; a session belongs to at most one group. */
   sessionAssignments: Object.freeze({}),
@@ -59,7 +61,7 @@ export const DEFAULT_PREFS = Object.freeze({
 const MODES = new Set(['session', 'native']);
 const ARCHIVED = new Set(['hide', 'show', 'only']);
 const SORTS = new Set(['updated', 'manual']);
-const GROUP_MODES = new Set(['default', 'nested', 'session', 'workspace']);
+const GROUP_MODES = new Set(['default', 'nested', 'workspace']);
 
 function sanitizeWorkspaceGroups(input) {
   if (!Array.isArray(input)) return [];
@@ -96,6 +98,17 @@ function sanitizeWorkspaceGroups(input) {
     if (cycle) group.parentId = null;
   }
   return groups;
+}
+
+function sanitizeOrders(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const out = {};
+  for (const [key, list] of Object.entries(value)) {
+    if (typeof key !== 'string' || !key || !Array.isArray(list)) continue;
+    const ids = [...new Set(list.filter((id) => typeof id === 'string' && id))];
+    if (ids.length > 0) out[key] = ids;
+  }
+  return out;
 }
 
 function sanitizeAssignments(input, groups) {
@@ -156,7 +169,11 @@ function sanitize(raw) {
   const workspaceAssignments = sanitizeAssignments(value.workspaceAssignments, workspaceGroups);
   const sessionGroups = sanitizeWorkspaceGroups(value.sessionGroups);
   const sessionAssignments = sanitizeAssignments(value.sessionAssignments, sessionGroups);
-  const rawGroupMode = value.workspaceGroupMode === 'custom' ? 'workspace' : value.workspaceGroupMode;
+  const rawGroupMode = value.workspaceGroupMode === 'custom'
+    ? 'workspace'
+    : value.workspaceGroupMode === 'session'
+      ? 'nested'
+      : value.workspaceGroupMode;
   const workspaceGroupMode = GROUP_MODES.has(rawGroupMode)
     ? rawGroupMode
     : value.nestWorkspaces === false
@@ -185,8 +202,10 @@ function sanitize(raw) {
     workspaceGroupMode,
     workspaceGroups,
     workspaceAssignments,
+    workspaceGroupOrders: sanitizeOrders(value.workspaceGroupOrders),
     sessionGroups,
     sessionAssignments,
+    sessionGroupOrders: sanitizeOrders(value.sessionGroupOrders),
     manualOrder,
     collapsedGroups,
     focusGroups,
@@ -209,6 +228,8 @@ function fresh() {
     hiddenWorkspaceIds: [],
     workspaceGroups: [],
     workspaceAssignments: {},
+    workspaceGroupOrders: {},
+    sessionGroupOrders: {},
     sessionGroups: [],
     sessionAssignments: {},
   };

@@ -44,6 +44,7 @@ export function WorkspaceGroupsDialog({ t, prefs, workspaces, onChange, onClose 
   const [renameValue, setRenameValue] = useState('');
   const [editingId, setEditingId] = useState('');
   const [deleteId, setDeleteId] = useState('');
+  const [filter, setFilter] = useState('');
 
   const setGroups = (next) => onChange({ workspaceGroups: next });
 
@@ -89,6 +90,13 @@ export function WorkspaceGroupsDialog({ t, prefs, workspaces, onChange, onClose 
   };
 
   const membersOf = (groupId) => items.filter((workspace) => assignments[workspace.workspaceId] === groupId);
+  const query = filter.trim().toLowerCase();
+  const matchesWorkspace = (workspace) => !query
+    || `${workspaceLabel(workspace)} ${workspace.path ?? ''}`.toLowerCase().includes(query);
+  const visibleWorkspaces = items.filter(matchesWorkspace);
+  const visibleFlattened = flattened.filter((group, index) => !query
+    || groupDisplayName(t, group, index).toLowerCase().includes(query)
+    || membersOf(group.id).some(matchesWorkspace));
   const deleting = groups.find((group) => group.id === deleteId);
 
   return (
@@ -149,8 +157,16 @@ export function WorkspaceGroupsDialog({ t, prefs, workspaces, onChange, onClose 
         </div>
       )}
 
+      <input
+        className="dsv-input dsv-groupSearch"
+        placeholder={t('group.searchAll')}
+        aria-label={t('group.searchAll')}
+        value={filter}
+        onChange={(event) => setFilter(event.target.value)}
+      />
       <div className="dsv-groupList">
-        {flattened.map((group, index) => {
+        {visibleFlattened.map((group) => {
+          const index = flattened.findIndex((entry) => entry.id === group.id);
           const members = membersOf(group.id);
           return (
             <article className="dsv-groupCard" key={group.id} style={{ marginLeft: group.depth * 16 }}>
@@ -203,10 +219,10 @@ export function WorkspaceGroupsDialog({ t, prefs, workspaces, onChange, onClose 
               </div>
               {editingId === group.id && (
                 <div className="dsv-groupMembers">
-                  {items.length === 0 ? (
+                  {visibleWorkspaces.length === 0 ? (
                     <p className="dsv-sideHint">{t('focus.noWorkspaces')}</p>
                   ) : (
-                    items.map((workspace) => (
+                    visibleWorkspaces.map((workspace) => (
                       <label className="dsv-sideCheck" key={workspace.workspaceId}>
                         <input
                           type="checkbox"
@@ -222,7 +238,7 @@ export function WorkspaceGroupsDialog({ t, prefs, workspaces, onChange, onClose 
             </article>
           );
         })}
-        {groups.length === 0 && <p className="dsv-sideEmpty">{t('group.emptyList')}</p>}
+        {visibleFlattened.length === 0 && <p className="dsv-sideEmpty">{t('group.emptyList')}</p>}
       </div>
 
       {deleting && (

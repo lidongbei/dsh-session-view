@@ -41,6 +41,14 @@ export function pendingLabelKey(kind) {
   }
 }
 
+/** Aggregate status for a custom group: pending > running > done, else null. */
+export function groupStatus(rows = []) {
+  if (rows.some((row) => row.status === 'pending')) return 'pending';
+  if (rows.some((row) => row.status === 'running' || row.runningChildren > 0)) return 'running';
+  if (rows.some((row) => row.status === 'done')) return 'done';
+  return null;
+}
+
 /** Locale key for a display status. */
 export function statusLabelKey(status) {
   switch (status) {

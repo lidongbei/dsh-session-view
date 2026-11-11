@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { createPortal } from 'react-dom';
 import {
   activeRows,
+  groupStatus,
   annotateRows,
   archivedRows,
   buildCandidates,
@@ -36,7 +37,6 @@ import { requestPanelIntent } from './panel-intent.js';
 import { ConfirmDialog, Dialog, PromptDialog } from './dialog.jsx';
 import { FocusBar, FocusDialog, FocusMembersDialog, groupLabel, memberSummary } from './focus-mode.jsx';
 import { groupDisplayName, WorkspaceGroupsDialog } from './workspace-groups.jsx';
-import { SessionGroupsDialog } from './session-groups.jsx';
 import { STYLES } from './styles.js';
 import { ActivityIcon, ArchiveIcon, ChevronDownIcon, ChevronRightIcon, ClockIcon, FolderIcon, LayoutIcon, PinIcon, PlusIcon, RestoreIcon, SearchIcon, SessionViewIcon, TargetIcon, TrashIcon, ChevronsUpIcon, ChevronsDownIcon } from './icons.jsx';
 
@@ -175,6 +175,41 @@ export function SidebarWorkspacePane({
   const trashIds = useSyncExternalStore(subscribeTrash, getTrashIds, getTrashIds);
   const dragRef = useRef(null);
   const workspaceDragRef = useRef(null);
+
+  const orderWorkspaceGroups = (list, groupId) => {
+    const order = prefs.workspaceGroupOrders?.[groupId];
+    if (!order?.length) return list;
+    const rank = new Map(order.map((id, index) => [id, index]));
+    return [...list].sort((a, b) => {
+      const ai = rank.has(a.workspace?.workspaceId) ? rank.get(a.workspace.workspaceId) : Number.MAX_SAFE_INTEGER;
+      const bi = rank.has(b.workspace?.workspaceId) ? rank.get(b.workspace.workspaceId) : Number.MAX_SAFE_INTEGER;
+      return ai - bi;
+    });
+  };
+
+  const assignWorkspaceTo = (workspaceId, groupId, beforeId, after = false) => {
+    if (!workspaceId) return;
+    const assignments = { ...(prefs.workspaceAssignments ?? {}) };
+    if (groupId) assignments[workspaceId] = groupId;
+    else delete assignments[workspaceId];
+    const orderKey = groupId ?? '__root';
+    const orders = { ...(prefs.workspaceGroupOrders ?? {}) };
+    for (const key of Object.keys(orders)) {
+      if (key !== orderKey && orders[key]?.includes(workspaceId)) {
+        orders[key] = orders[key].filter((id) => id !== workspaceId);
+      }
+    }
+    const base = (orders[orderKey] ?? []).filter((id) => id !== workspaceId);
+    if (beforeId && beforeId !== workspaceId) {
+      const at = base.indexOf(beforeId);
+      if (at >= 0) base.splice(after ? at + 1 : at, 0, workspaceId);
+      else base.push(workspaceId);
+    } else {
+      base.push(workspaceId);
+    }
+    orders[orderKey] = base;
+    setPrefs({ workspaceAssignments: assignments, workspaceGroupOrders: orders });
+  };
   const searchRef = useRef(null);
   const focusedRef = useRef(null);
 
@@ -341,99 +376,111 @@ export function SidebarWorkspacePane({
       prefs.sort === 'manual' ? applyFamilyOrder(list, prefs.manualOrder[key]) : sortFamilies(list, byUpdated)
     );
     const mode = prefs.workspaceGroupMode ?? (prefs.nestWorkspaces ? 'nested' : 'default');
-    if (mode === 'session') {
-      const flattened = flattenWorkspaceGroups(prefs.sessionGroups);
-      const byGroup = new Map(flattened.map((group) => [group.id, []]));
-      const ungrouped = [];
-      for (const row of rows) {
-        const groupId = prefs.sessionAssignments?.[row.session.id];
-        if (groupId && byGroup.has(groupId)) byGroup.get(groupId).push(row);
-        else ungrouped.push(row);
-      }
-      const sections = flattened.map((group, index) => ({
-        key: `sg:${group.id}`,
-        label: groupDisplayName(t, group, index),
-        depth: group.depth,
-        custom: true,
-        sessionGroup: true,
-        groupId: group.id,
-        workspace: null,
-        rows: sortGroup(byGroup.get(group.id) ?? [], group.id),
-      }));
-      if (ungrouped.length > 0) {
-        sections.push({
-          key: 'sg:__none',
-          label: t('group.ungrouped'),
-          depth: 0,
-          custom: true,
-          sessionGroup: true,
-          workspace: null,
-          rows: sortGroup(ungrouped, '__none'),
-        });
-      }
-      return sections;
-    }
-    if (mode === 'workspace') {
-      const flattened = flattenWorkspaceGroups(prefs.workspaceGroups);
-      const byGroup = new Map(flattened.map((group) => [group.id, []]));
-      const ungrouped = [];
-      for (const row of rows) {
-        const workspaceId = row.workspace?.workspaceId;
-        const groupId = workspaceId ? prefs.workspaceAssignments?.[workspaceId] : null;
-        if (groupId && byGroup.has(groupId)) byGroup.get(groupId).push(row);
-        else ungrouped.push(row);
-      }
-      const sections = flattened.map((group, index) => ({
-        key: `wg:${group.id}`,
-        label: groupDisplayName(t, group, index),
-        depth: group.depth,
-        custom: true,
-        groupId: group.id,
-        workspace: null,
-        rows: sortGroup(byGroup.get(group.id) ?? [], group.id),
-      }));
-      if (ungrouped.length > 0) {
-        sections.push({
-          key: 'wg:__none',
-          label: t('group.ungrouped'),
-          depth: 0,
-          custom: true,
-          workspace: null,
-          rows: sortGroup(ungrouped, '__none'),
-        });
-      }
-      return sections;
-    }
     return groupByWorkspace(rows, workspaceView, mode === 'nested').map((group) => {
       const key = group.workspace?.workspaceId ?? '__none';
       return { ...group, rows: sortGroup(group.rows, key), key };
     });
   };
 
+  const groupMode = prefs.workspaceGroupMode ?? (prefs.nestWorkspaces ? 'nested' : 'default');
+
+  const customWorkspaceTree = useMemo(() => {
+    if (!focusWorkspaces || groupMode !== 'workspace') return null;
+    const sortRows = (list, key) => (
+      prefs.sort === 'manual' ? applyFamilyOrder(list, prefs.manualOrder[key]) : sortFamilies(list, byUpdated)
+    );
+    const flat = flattenWorkspaceGroups(prefs.workspaceGroups);
+    const nodes = new Map(flat.map((group, index) => [group.id, {
+      ...group,
+      label: groupDisplayName(t, group, index),
+      key: `wg:${group.id}`,
+      children: [],
+      workspaces: [],
+      rows: [],
+    }]));
+    const roots = [];
+    for (const group of flat) {
+      const node = nodes.get(group.id);
+      const parent = group.parentId ? nodes.get(group.parentId) : null;
+      if (parent) parent.children.push(node);
+      else roots.push(node);
+    }
+    const ungrouped = {
+      id: '__none',
+      key: 'wg:__none',
+      label: t('group.ungrouped'),
+      depth: 0,
+      ungrouped: true,
+      children: [],
+      workspaces: [],
+      rows: [],
+    };
+    const workspaceGroups = groupByWorkspace(restRows, focusWorkspaces, false);
+    for (const item of workspaceGroups) {
+      const workspaceId = item.workspace?.workspaceId;
+      const groupId = workspaceId ? prefs.workspaceAssignments?.[workspaceId] : null;
+      const target = groupId && nodes.has(groupId) ? nodes.get(groupId) : ungrouped;
+      target.workspaces.push({
+        ...item,
+        key: workspaceId ?? '__none',
+        containerId: target.id,
+        depth: target.ungrouped ? 0 : target.depth + 1,
+        rows: sortRows(item.rows, workspaceId ?? '__none'),
+      });
+    }
+    const finalize = (node) => {
+      node.children = node.children.map(finalize);
+      node.rows = [
+        ...node.workspaces.flatMap((workspace) => workspace.rows),
+        ...node.children.flatMap((child) => child.rows),
+      ];
+      return node;
+    };
+    const applyOrder = (node) => {
+      node.workspaces = orderWorkspaceGroups(node.workspaces, node.id);
+      for (const child of node.children) applyOrder(child);
+    };
+    for (const node of roots) applyOrder(node);
+    const tree = roots.map(finalize);
+    if (ungrouped.workspaces.length > 0) {
+      ungrouped.workspaces = orderWorkspaceGroups(ungrouped.workspaces, '__root');
+      tree.push(finalize(ungrouped));
+    }
+    return tree;
+  }, [
+    restRows,
+    focusWorkspaces,
+    groupMode,
+    prefs.workspaceGroups,
+    prefs.workspaceAssignments,
+    prefs.workspaceGroupOrders,
+    prefs.sort,
+    prefs.manualOrder,
+    t,
+  ]);
+
   const groups = useMemo(
-    () => buildGroups(restRows, focusWorkspaces),
+    () => (groupMode === 'workspace' ? [] : buildGroups(restRows, focusWorkspaces)),
     [
       restRows,
       focusWorkspaces,
-      prefs.workspaceGroupMode,
-      prefs.workspaceGroups,
-      prefs.workspaceAssignments,
-      prefs.sessionGroups,
-      prefs.sessionAssignments,
+      groupMode,
       prefs.nestWorkspaces,
       prefs.sort,
       prefs.manualOrder,
     ],
   );
 
-  const sessionGroupItems = useMemo(
-    () => annotated.map((row) => ({
-      id: row.session.id,
-      title: row.session.blank ? t('row.newSession') : (sessionTitle(row.session) || row.session.id),
-      workspace: row.workspace ? workspaceLabel(row.workspace) : t('workspace.unknown'),
-    })),
-    [annotated, t],
+  const countTreeWorkspaces = (nodes) => (nodes ?? []).reduce(
+    (count, node) => count + node.workspaces.length + countTreeWorkspaces(node.children),
+    0,
   );
+  const workspaceSectionCount = customWorkspaceTree
+    ? countTreeWorkspaces(customWorkspaceTree)
+    : groups.length;
+  const workspaceRowCount = customWorkspaceTree
+    ? customWorkspaceTree.reduce((count, node) => count + node.rows.length, 0)
+    : groups.reduce((count, group) => count + group.rows.length, 0);
 
   const archived = useMemo(() => {
     if (prefs.archivedFilter === 'hide') return [];
@@ -701,27 +748,23 @@ export function SidebarWorkspacePane({
     <>
       {contextWorkspaceFilterEntry()}
       <span className="dsv-menuDivider" role="separator" />
-      {['default', 'nested', 'session', 'workspace'].map((mode) => (
-        <button
-          key={mode}
-          type="button"
-          role="menuitemradio"
-          aria-checked={currentGroupMode === mode}
-          className="dsv-menuChoice"
-          onClick={() => { closeMenus(); setPrefs({ workspaceGroupMode: mode }); }}
-        >
-          <span className="dsv-menuCheck" aria-hidden="true">{currentGroupMode === mode ? '✓' : ''}</span>
-          {t(`group.mode.${mode}`)}
-        </button>
-      ))}
+      <div className="dsv-menuLabel" role="presentation">{t('group.mode.title')}</div>
+      <div className="dsv-menuSub" role="group" aria-label={t('group.mode.title')}>
+        {['default', 'nested', 'workspace'].map((mode) => (
+          <button
+            key={mode}
+            type="button"
+            role="menuitemradio"
+            aria-checked={currentGroupMode === mode}
+            className="dsv-menuChoice dsv-menuChoiceSub"
+            onClick={() => { closeMenus(); setPrefs({ workspaceGroupMode: mode }); }}
+          >
+            <span className="dsv-menuCheck" aria-hidden="true">{currentGroupMode === mode ? '✓' : ''}</span>
+            {t(`group.mode.${mode}`)}
+          </button>
+        ))}
+      </div>
       <span className="dsv-menuDivider" role="separator" />
-      <button
-        type="button"
-        role="menuitem"
-        onClick={() => { closeMenus(); setDialog({ kind: 'sessionGroups' }); }}
-      >
-        {t('group.manage.session')}
-      </button>
       <button
         type="button"
         role="menuitem"
@@ -740,20 +783,6 @@ export function SidebarWorkspacePane({
         onClick={() => { closeMenus(); setDialog({ kind: 'workspaceGroups' }); }}
       >
         {t('group.manage.workspace')}
-      </button>
-      <span className="dsv-menuDivider" role="separator" />
-      {contextWorkspaceFilterEntry()}
-    </>
-  );
-
-  const contextSessionGroupItems = () => (
-    <>
-      <button
-        type="button"
-        role="menuitem"
-        onClick={() => { closeMenus(); setDialog({ kind: 'sessionGroups' }); }}
-      >
-        {t('group.manage.session')}
       </button>
       <span className="dsv-menuDivider" role="separator" />
       {contextWorkspaceFilterEntry()}
@@ -801,17 +830,23 @@ export function SidebarWorkspacePane({
   const contextRow = contextMenu?.kind === 'session'
     ? (contextMenu.archived ? archived : annotated).find((row) => row.session.id === contextMenu.id)
     : null;
+  const customWorkspaces = [];
+  const collectWorkspaces = (nodes) => {
+    for (const node of nodes ?? []) {
+      customWorkspaces.push(...node.workspaces.map((group) => group.workspace));
+      collectWorkspaces(node.children);
+    }
+  };
+  collectWorkspaces(customWorkspaceTree);
   const contextWorkspace = contextMenu?.kind === 'workspace'
-    ? groups.map((group) => group.workspace).find((workspace) => workspace?.workspaceId === contextMenu.id)
+    ? [...groups.map((group) => group.workspace), ...customWorkspaces]
+      .find((workspace) => workspace?.workspaceId === contextMenu.id)
     : null;
   const contextFocus = contextMenu?.kind === 'focus'
     ? prefs.focusGroups.find((group) => group.id === contextMenu.id) ?? null
     : null;
   const contextWorkspaceGroup = contextMenu?.kind === 'workspaceGroup'
     ? prefs.workspaceGroups.find((group) => group.id === contextMenu.id) ?? null
-    : null;
-  const contextSessionGroup = contextMenu?.kind === 'sessionGroup'
-    ? prefs.sessionGroups.find((group) => group.id === contextMenu.id) ?? null
     : null;
   const contextItems = contextRow
     ? contextSessionItems(contextRow, contextMenu.archived)
@@ -821,16 +856,14 @@ export function SidebarWorkspacePane({
         ? contextWorkspaceSectionItems()
         : contextWorkspaceGroup
           ? contextWorkspaceGroupItems(contextWorkspaceGroup)
-          : contextSessionGroup
-            ? contextSessionGroupItems(contextSessionGroup)
-            : contextWorkspace
+          : contextWorkspace
               ? contextWorkspaceItems(contextWorkspace)
               : contextFocus
                 ? contextFocusItems(contextFocus)
                 : null;
 
-  const sectionHead = ({ key, label, count, icon = null, collapsed, extra = null, onContextMenu = undefined }) => (
-    <div className="dsv-sideGroupHead dsv-sideSectionHead" onContextMenu={onContextMenu}>
+  const sectionHead = ({ key, label, count, icon = null, collapsed, extra = null, onContextMenu = undefined, onDragOver = undefined, onDragLeave = undefined, onDrop = undefined }) => (
+    <div className="dsv-sideGroupHead dsv-sideSectionHead" onContextMenu={onContextMenu} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
       <button
         type="button"
         className="dsv-sideGroupToggle"
@@ -849,7 +882,8 @@ export function SidebarWorkspacePane({
   );
 
   const renderRow = (row, options = {}) => {
-    const { archivedRow = false } = options;
+    const { archivedRow = false, indent = 0 } = options;
+    const rowIndent = indent + (row.depth ?? 0) * 12;
     const open = () => openSession(row.session.id);
     const isPinned = pinnedSet.has(row.session.id);
     const time = formatTime(t, row.session.updatedAt, now);
@@ -863,7 +897,7 @@ export function SidebarWorkspacePane({
         data-status={row.status}
         data-archived={archivedRow || undefined}
         data-pinned={isPinned || undefined}
-        style={{ '--dsv-indent': `${(row.depth ?? 0) * 12}px` }}
+        style={{ '--dsv-indent': `${rowIndent}px` }}
         draggable={prefs.sort === 'manual' && !query.trim() && !archivedRow}
         onDragStart={(event) => startDrag(event, row)}
         onDragOver={markRowDrop}
@@ -929,9 +963,10 @@ export function SidebarWorkspacePane({
       <div
         className="dsv-sideGroupHead"
         style={{ paddingLeft: 4 + group.depth * 12 }}
-        draggable={!!workspace && prefs.sort === 'manual' && !query.trim()}
+        draggable={!!workspace && !query.trim() && (prefs.sort === 'manual' || groupMode === 'workspace')}
         onDragStart={(event) => {
-          if (!workspace || prefs.sort !== 'manual' || query.trim()) return;
+          if (!workspace || query.trim()) return;
+          if (prefs.sort !== 'manual' && groupMode !== 'workspace') return;
           workspaceDragRef.current = workspace.workspaceId;
           window.getSelection()?.removeAllRanges();
           document.body.classList.add('dsv-dragging');
@@ -956,6 +991,11 @@ export function SidebarWorkspacePane({
           clearDragMarks();
           if (!from || !workspace || from === workspace.workspaceId) return;
           event.preventDefault();
+          if (groupMode === 'workspace' && group.containerId) {
+            const rect = event.currentTarget.getBoundingClientRect();
+            assignWorkspaceTo(from, group.containerId, workspace.workspaceId, event.clientY > rect.top + rect.height / 2);
+            return;
+          }
           insertWorkspaceBefore?.(from, workspace.workspaceId);
         }}
         onDragEnd={() => {
@@ -968,7 +1008,7 @@ export function SidebarWorkspacePane({
           event.stopPropagation();
           setMenu(null);
           setContextMenu({
-            kind: custom ? (group.sessionGroup ? 'sessionGroup' : 'workspaceGroup') : 'workspace',
+            kind: custom ? 'workspaceGroup' : 'workspace',
             id: custom ? group.groupId : key,
             x: event.clientX,
             y: event.clientY,
@@ -1032,7 +1072,8 @@ export function SidebarWorkspacePane({
     );
   };
 
-  const renderGroup = (group, index) => {
+  const renderGroup = (group, index, options = {}) => {
+    const { indent = 0 } = options;
     const collapsed = collapsedGroups.has(group.key);
     const tops = topLevelRows(group.rows);
     // Native-style watermark: active, waiting, unread-complete and
@@ -1052,12 +1093,12 @@ export function SidebarWorkspacePane({
         {renderWorkspaceHead(group, index)}
         {!collapsed && (
           <>
-            {visible.map((row) => renderRow(row))}
+            {visible.map((row) => renderRow(row, { indent }))}
             {(hidden || canLess) && (
               <button
                 type="button"
                 className="dsv-sideMore"
-                style={{ paddingLeft: 28 + group.depth * 12 }}
+                style={{ paddingLeft: 28 + group.depth * 12 + indent }}
                 onClick={() => (hidden ? showMore(group.key) : showLess(group.key))}
               >
                 {t(hidden ? 'side.more' : 'side.less')}
@@ -1070,12 +1111,104 @@ export function SidebarWorkspacePane({
     );
   };
 
+  const renderCustomGroup = (node) => {
+    if (node.ungrouped) {
+      return (
+        <>
+          {node.workspaces.map((workspaceGroup, index) => (
+            renderGroup(workspaceGroup, index, { indent: 0 })
+          ))}
+        </>
+      );
+    }
+    const collapsed = collapsedGroups.has(node.key);
+    const count = node.rows.length;
+    return (
+      <section className="dsv-sideGroup dsv-customWorkspaceGroup" key={node.key} aria-label={node.label}>
+        <div
+          className="dsv-sideGroupHead"
+          style={{ paddingLeft: 4 + node.depth * 12 }}
+          onDragOver={(event) => {
+            const from = workspaceDragRef.current;
+            if (!from || !groupMode || groupMode !== 'workspace') return;
+            event.preventDefault();
+            event.stopPropagation();
+            event.currentTarget.classList.add('dsv-dropTarget');
+          }}
+          onDragLeave={(event) => {
+            if (event.currentTarget.contains(event.relatedTarget)) return;
+            event.currentTarget.classList.remove('dsv-dropTarget');
+          }}
+          onDrop={(event) => {
+            const from = workspaceDragRef.current;
+            if (!from) return;
+            event.preventDefault();
+            event.stopPropagation();
+            workspaceDragRef.current = null;
+            clearDragMarks();
+            assignWorkspaceTo(from, node.id, null);
+          }}
+          onContextMenu={node.ungrouped ? undefined : (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            setMenu(null);
+            setContextMenu({ kind: 'workspaceGroup', id: node.id, x: event.clientX, y: event.clientY });
+          }}
+        >
+          <button
+            type="button"
+            className="dsv-sideGroupToggle"
+            aria-expanded={!collapsed}
+            aria-label={node.label}
+            onClick={() => toggleGroup(node.key)}
+          >
+            <span className="dsv-sideChevron" data-collapsed={collapsed}>
+              {collapsed ? <ChevronRightIcon size={10} /> : <ChevronDownIcon size={10} />}
+            </span>
+            <LayoutIcon size={12} />
+            <span className="dsv-sideGroupTitle">{node.label}</span>
+            {(() => {
+              const status = groupStatus(node.rows);
+              return status ? (
+                <span className="dsv-sideStatusMark" title={t(statusLabelKey(status))}>
+                  <span className="dsv-dot" data-status={status} />
+                </span>
+              ) : null;
+            })()}
+            <span className="dsv-sideCount">{count}</span>
+          </button>
+        </div>
+        {!collapsed && (
+          <>
+            {node.children.map((child) => renderCustomGroup(child))}
+            {node.workspaces.map((workspaceGroup, index) => (
+              renderGroup(workspaceGroup, index, { indent: (workspaceGroup.depth + 1) * 12 })
+            ))}
+            {node.workspaces.length === 0 && node.children.length === 0 && (
+              <div className="dsv-sideHint" style={{ paddingLeft: 28 + node.depth * 12 }}>{t('group.empty')}</div>
+            )}
+          </>
+        )}
+      </section>
+    );
+  };
+
   const searchActive = query.trim().length > 0;
   const activeCollapsed = collapsedGroups.has('__active');
   const recentCollapsed = collapsedGroups.has('__recent');
   const pinnedCollapsed = collapsedGroups.has('__pinned');
   const workspacesCollapsed = collapsedGroups.has('__workspaces');
-  const workspaceGroupKeys = groups.map((group) => group.key);
+  const workspaceGroupKeys = useMemo(() => {
+    if (!customWorkspaceTree) return groups.map((group) => group.key);
+    const keys = [];
+    const walk = (node) => {
+      if (!node.ungrouped) keys.push(node.key);
+      for (const workspaceGroup of node.workspaces) keys.push(workspaceGroup.key);
+      for (const child of node.children) walk(child);
+    };
+    for (const node of customWorkspaceTree) walk(node);
+    return keys;
+  }, [customWorkspaceTree, groups]);
   const allWorkspacesCollapsed = workspaceGroupKeys.length > 0
     && workspaceGroupKeys.every((key) => collapsedGroups.has(key));
   const toggleAllWorkspaces = () => {
@@ -1414,12 +1547,13 @@ export function SidebarWorkspacePane({
               </section>
             )}
 
-            {prefs.archivedFilter !== 'only' && prefs.showWorkspaces && groups.length > 0 && (
+            {prefs.archivedFilter !== 'only' && prefs.showWorkspaces &&
+              (customWorkspaceTree ? customWorkspaceTree.length > 0 : groups.length > 0) && (
               <section className="dsv-sideGroup dsv-sideWorkspaces" aria-label={t('side.workspaces')}>
                 {sectionHead({
                   key: '__workspaces',
                   label: t('side.workspaces'),
-                  count: groups.length,
+                  count: workspaceSectionCount,
                   icon: <LayoutIcon size={12} />,
                   collapsed: workspacesCollapsed,
                   onContextMenu: (event) => {
@@ -1427,6 +1561,24 @@ export function SidebarWorkspacePane({
                     event.stopPropagation();
                     setMenu(null);
                     setContextMenu({ kind: 'workspaceSection', x: event.clientX, y: event.clientY });
+                  },
+                  onDragOver: (event) => {
+                    if (groupMode !== 'workspace' || !workspaceDragRef.current) return;
+                    event.preventDefault();
+                    event.currentTarget.classList.add('dsv-dropTarget');
+                  },
+                  onDragLeave: (event) => {
+                    if (event.currentTarget.contains(event.relatedTarget)) return;
+                    event.currentTarget.classList.remove('dsv-dropTarget');
+                  },
+                  onDrop: (event) => {
+                    const from = workspaceDragRef.current;
+                    if (groupMode !== 'workspace' || !from) return;
+                    event.preventDefault();
+                    event.currentTarget.classList.remove('dsv-dropTarget');
+                    workspaceDragRef.current = null;
+                    clearDragMarks();
+                    assignWorkspaceTo(from, null, null);
                   },
                   extra: workspaceGroupKeys.length > 0 ? (
                     <button
@@ -1442,7 +1594,9 @@ export function SidebarWorkspacePane({
                     </button>
                   ) : null,
                 })}
-                {!workspacesCollapsed && groups.map((group, index) => renderGroup(group, index))}
+                {!workspacesCollapsed && (customWorkspaceTree
+                  ? customWorkspaceTree.map((node) => renderCustomGroup(node))
+                  : groups.map((group, index) => renderGroup(group, index)))}
               </section>
             )}
 
@@ -1465,7 +1619,7 @@ export function SidebarWorkspacePane({
             )}
 
             {activeRowsView.length === 0 && pinnedRows.length === 0 && archived.length === 0 &&
-              prefs.showWorkspaces && !groups.some((group) => group.rows.length > 0) && (
+              prefs.showWorkspaces && workspaceRowCount === 0 && (
               <div className="dsv-sideEmpty">
                 {focusGroup ? (
                   <>
@@ -1577,16 +1731,6 @@ export function SidebarWorkspacePane({
           t={t}
           prefs={prefs}
           workspaces={workspaces}
-          onChange={(patch) => setPrefs(patch)}
-          onClose={() => setDialog(null)}
-        />
-      )}
-
-      {dialog?.kind === 'sessionGroups' && (
-        <SessionGroupsDialog
-          t={t}
-          prefs={prefs}
-          sessions={sessionGroupItems}
           onChange={(patch) => setPrefs(patch)}
           onClose={() => setDialog(null)}
         />

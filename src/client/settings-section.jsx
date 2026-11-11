@@ -6,7 +6,7 @@ const GLOW_EFFECTS = ['marquee', 'aurora', 'pulse', 'rainbow', 'comet', 'scan', 
 
 function Row({ label, description, children }) {
   return (
-    <div className="dsv-settingRow">
+    <div className={`dsv-settingRow${description ? '' : ' dsv-settingRow--plain'}`}>
       <div className="dsv-settingText">
         <span className="dsv-settingLabel">{label}</span>
         {description ? <span className="dsv-settingDesc">{description}</span> : null}
@@ -18,7 +18,7 @@ function Row({ label, description, children }) {
 
 function Toggle({ label, description, value, onChange }) {
   return (
-    <label className="dsv-settingRow dsv-settingRow--toggle">
+    <label className={`dsv-settingRow dsv-settingRow--toggle${description ? '' : ' dsv-settingRow--plain'}`}>
       <span className="dsv-settingText">
         <span className="dsv-settingLabel">{label}</span>
         {description ? <span className="dsv-settingDesc">{description}</span> : null}
@@ -166,7 +166,6 @@ export function SessionViewSettings({ t }) {
           >
             <option value="default">{t('group.mode.default')}</option>
             <option value="nested">{t('group.mode.nested')}</option>
-            <option value="session">{t('group.mode.session')}</option>
             <option value="workspace">{t('group.mode.workspace')}</option>
           </select>
         </Row>

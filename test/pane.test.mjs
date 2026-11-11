@@ -100,6 +100,8 @@ setPrefs({
   workspaceAssignments: { w1: 'g2' },
 });
 globalThis.__DSV_PANE_HTML_GROUPS = renderToStaticMarkup(React.createElement(SidebarWorkspacePane, props));
+setPrefs({ collapsedGroups: ['wg:g1', 'wg:g2'] });
+globalThis.__DSV_PANE_HTML_GROUPS_COLLAPSED = renderToStaticMarkup(React.createElement(SidebarWorkspacePane, props));
 resetPrefs();
 setPrefs({
   workspaceGroupMode: 'session',
@@ -148,15 +150,19 @@ test('SidebarWorkspacePane renders pinned and a limited active group', async () 
     assert.ok(glow.includes('data-status="running"') && glow.includes('data-status="pending"'), 'glow must mark running and pending rows');
     const grouped = globalThis.__DSV_PANE_HTML_GROUPS;
     assert.ok(grouped.includes('组 A'), 'missing custom group heading');
+    assert.ok(!grouped.includes('未分组'), 'ungrouped workspaces must render at root without a bucket heading');
+    const groupedCollapsed = globalThis.__DSV_PANE_HTML_GROUPS_COLLAPSED;
+    delete globalThis.__DSV_PANE_HTML_GROUPS_COLLAPSED;
+    const countTask = (value) => (value.match(/Task run1/g) ?? []).length;
+    assert.ok(countTask(groupedCollapsed) < countTask(grouped), 'collapse-all must hide sessions inside custom groups');
+    assert.ok(groupedCollapsed.includes('aria-expanded="false"'), 'custom groups must render collapsed');
     assert.ok(grouped.includes('子组 B'), 'missing nested custom group heading');
     assert.ok(grouped.includes('Task run1'), 'assigned workspace sessions missing from custom group');
-    assert.ok(!grouped.includes('aria-label="App"'), 'custom grouping must not fall back to workspace sections');
+    assert.ok(grouped.includes('aria-label="App"'), 'custom grouping must keep workspace sections inside groups');
+    assert.ok(grouped.includes('App'), 'workspace heading missing below custom groups');
     const sessionGrouped = globalThis.__DSV_PANE_HTML_SESSIONGROUPS;
-    assert.ok(sessionGrouped.includes('会话组 A'), 'missing session group heading');
-    assert.ok(sessionGrouped.includes('会话子组 B'), 'missing nested session group heading');
-    assert.ok(sessionGrouped.includes('Task run1'), 'assigned session missing from its session group');
-    assert.ok(sessionGrouped.includes('未分组'), 'ungrouped sessions bucket missing');
-    assert.ok(!sessionGrouped.includes('aria-label="App"'), 'session grouping must not render workspace sections');
+    assert.ok(!sessionGrouped.includes('会话组 A'), 'session groups must not render in the sidebar');
+    assert.ok(sessionGrouped.includes('工作区会话'), 'sidebar should fall back to workspace sections');
     assert.ok(html.includes('置顶'), 'missing pinned heading');
     assert.ok(html.includes('Pinned task'), 'missing pinned row');
     const active = html.match(/<section class="dsv-sideGroup" aria-label="活跃会话">([\s\S]*?)<\/section>/)?.[1] ?? '';
