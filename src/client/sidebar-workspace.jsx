@@ -29,6 +29,7 @@ import {
   topLevelRows,
   watermarkLimit,
   workspaceLabel,
+  errorMessage,
 } from './logic.js';
 import { addToTrash } from './api.js';
 import { getPrefs, setPrefs, subscribePrefs } from './prefs.js';
@@ -44,7 +45,7 @@ import { ActivityIcon, ArchiveIcon, ChevronDownIcon, ChevronRightIcon, ClockIcon
 const ALL = '__all';
 
 function errorText(error) {
-  return String(error?.message ?? error);
+  return errorMessage(error);
 }
 
 function looksRunning(error) {
@@ -321,6 +322,12 @@ export function SidebarWorkspacePane({
     };
   }, [query, searchSessions]);
 
+  const pinnedSet = useMemo(() => new Set(workspaces?.pinnedSessionIds ?? []), [workspaces?.pinnedSessionIds]);
+  const archivedSet = useMemo(
+    () => new Set(workspaces?.archivedSessionIds ?? []),
+    [workspaces?.archivedSessionIds],
+  );
+
   const annotated = useMemo(() => {
     if (!sessions || !workspaces) return [];
     const candidates = buildCandidates(sessions, workspaces.archivedSessionIds);
@@ -331,7 +338,7 @@ export function SidebarWorkspacePane({
     const rows = annotateRows(built, statuses);
     const visible = prefs.showSubagents ? rows : rows.filter((row) => row.session.origin !== 'subagent');
     return filterHiddenRows(filterRowsByFocus(visible, prefs), prefs.hiddenWorkspaceIds).filter(
-      (row) => !trashIds.has(row.session.id),
+      (row) => !trashIds.has(row.session.id) && !archivedSet.has(row.session.id),
     );
   }, [
     sessions,
@@ -342,13 +349,8 @@ export function SidebarWorkspacePane({
     prefs.focusGroupId,
     prefs.hiddenWorkspaceIds,
     trashIds,
+    archivedSet,
   ]);
-
-  const pinnedSet = useMemo(() => new Set(workspaces?.pinnedSessionIds ?? []), [workspaces?.pinnedSessionIds]);
-  const archivedSet = useMemo(
-    () => new Set(workspaces?.archivedSessionIds ?? []),
-    [workspaces?.archivedSessionIds],
-  );
   const focusWorkspaces = useMemo(
     () =>
       filterHiddenWorkspaces(

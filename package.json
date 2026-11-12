@@ -1,6 +1,6 @@
 {
   "name": "dsh-session-view",
-  "version": "0.12.28",
+  "version": "0.12.32",
   "description": "Session-first workspace view for the DSH sidebar",
   "license": "MIT",
   "author": "lidongbei",

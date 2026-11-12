@@ -386,6 +386,19 @@ export function trashRows(items, byId = {}, workspaces) {
  * deleted, already archived, or the archive index moved on. Such rows should be
  * dropped from the current list instead of being retried forever.
  */
+export function errorMessage(error) {
+  if (!error) return '';
+  if (typeof error === 'string') return error;
+  if (typeof error.message === 'string' && error.message) return error.message;
+  if (typeof error.error === 'string' && error.error) return error.error;
+  if (error.error && typeof error.error.message === 'string' && error.error.message) return error.error.message;
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error);
+  }
+}
+
 export function isStaleSessionError(error) {
   const text = String(error?.message ?? error?.error?.message ?? error ?? '');
   return /not found|does not exist|no such session|unknown session|missing session|already archived|not archived|already trashed|not in trash|找不到|不存在|已归档|未归档|回收站中不存在/i.test(text);

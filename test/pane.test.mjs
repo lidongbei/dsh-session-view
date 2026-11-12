@@ -28,8 +28,9 @@ const byId = Object.fromEntries(ids.map((id, index) => [id, {
   blank: false,
   updatedAt: 1000 - index,
 }]));
+byId.archived = { id: 'archived', title: 'archived', displayTitle: 'Task archived', running: false, blank: false, updatedAt: 900 };
 byId.sub = { id: 'sub', title: 'sub', displayTitle: 'Sub task', parentId: 'run1', origin: 'subagent', running: false, blank: false, updatedAt: 2000 };
-const sessionIds = [...ids, 'sub'];
+const sessionIds = [...ids, 'sub', 'archived'];
 const sessions = { ids: sessionIds, byId, phase: 'ready', projectionsBySession: {} };
 const statuses = new Map([
   ['run1', { running: true, completionUnread: false }],
@@ -45,7 +46,7 @@ const workspaces = {
     { workspaceId: 'w1', title: 'App', path: 'C:/work/app', sessionIds: sessionIds },
     { workspaceId: 'w2', title: 'Empty workspace', path: 'C:/work/empty', sessionIds: [] },
   ],
-  archivedSessionIds: [],
+  archivedSessionIds: ['archived'],
   pinnedSessionIds: ['pinned'],
   state: 'idle',
   phase: 'ready',
@@ -176,6 +177,7 @@ test('SidebarWorkspacePane renders pinned and a limited active group', async () 
     assert.match(html, /data-status="pending"/);
     assert.match(html, /data-status="done"/);
     assert.ok(!html.includes('Sub task'), 'subagent row must not be rendered');
+    assert.ok(!html.includes('Task archived'), 'archived session must not be rendered in the sidebar');
     assert.ok(html.includes('Empty workspace'), 'empty workspace must stay visible');
     assert.ok(!html.includes('暂无会话'), 'empty-workspace hint must not be rendered');
     assert.ok(html.includes('最近会话'), 'missing recent group');

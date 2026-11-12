@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   archivedRows,
+  errorMessage,
   isStaleSessionError,
   splitSections,
   topRows,
@@ -91,6 +92,13 @@ test('archivedRows keeps existing sessions, sorts by recency and resolves worksp
   assert.equal(rows[0].archived, true);
   assert.equal(rows[0].workspace?.workspaceId, 'w2');
   assert.equal(rows[1].workspace?.workspaceId, 'w1');
+});
+
+test('errorMessage unwraps host failure objects', () => {
+  assert.equal(errorMessage({ sessionId: 's1', error: '无法彻底删除' }), '无法彻底删除');
+  assert.equal(errorMessage({ error: { message: 'busy' } }), 'busy');
+  assert.equal(errorMessage(new Error('boom')), 'boom');
+  assert.equal(errorMessage('plain'), 'plain');
 });
 
 test('isStaleSessionError recognizes vanished or already-transitioned sessions', () => {

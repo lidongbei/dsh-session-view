@@ -42,6 +42,6 @@ export function restoreTrash(sessionIds) {
 }
 
 /** Physically delete sessions from disk, then refresh the workspace index. */
-export function purgeTrash(sessionIds) {
-  return request('/session-view/trash/purge', { method: 'POST', body: { sessionIds } });
+export function purgeTrash(sessionIds, force = false) {
+  return request('/session-view/trash/purge', { method: 'POST', body: { sessionIds, force } });
 }

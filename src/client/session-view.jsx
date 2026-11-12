@@ -6,6 +6,7 @@ import {
   buildCandidates,
   buildRows,
   countByStatus,
+  errorMessage,
   filterRows,
   formatRelativeTime,
   flattenWorkspaceGroups,
@@ -47,10 +48,16 @@ const CONFIRM_COPY = {
     warning: 'confirm.purge.warning',
     tone: 'danger',
   },
+  forcePurge: {
+    title: 'confirm.forcePurge.title',
+    body: 'confirm.forcePurge.body',
+    warning: 'confirm.forcePurge.warning',
+    tone: 'danger',
+  },
 };
 
 function errorText(error) {
-  return String(error?.message ?? error);
+  return errorMessage(error);
 }
 
 /**
@@ -283,6 +290,20 @@ export function SessionView({
     setToast({ text: t('toast.failed', { message: errorText(failures[0]) }), tone: 'error' });
   };
 
+  const runCheck = async () => {
+    setBusy(true);
+    try {
+      await loadTrash();
+      setStaleIds(new Set());
+      setSelected([]);
+      notify(t('toast.checked'));
+    } catch (error) {
+      notify('', [error]);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const markStale = (ids) => {
     const unique = [...new Set(ids.filter(Boolean))];
     if (unique.length === 0) return 0;
@@ -421,13 +442,20 @@ export function SessionView({
     setSelected([]);
   };
 
-  const purgeMany = async (ids) => {
+  const purgeMany = async (ids, force = false) => {
     try {
-      const result = await purgeTrash(ids);
+      const result = await purgeTrash(ids, force);
       const failures = Array.isArray(result.failed) ? result.failed : [];
       const ok = result.purged?.length ?? 0;
       removeTrashIds(Array.isArray(result.purged) ? result.purged : ids);
       notify(ok === 0 ? '' : t('toast.purged', { n: ok }), failures, ok);
+      if (failures.length > 0) {
+        setTab('trash');
+        setQuery('');
+        setWorkspaceId(ALL);
+        setStatus(ALL);
+        setCollapsedSections(new Set());
+      }
       await loadTrash();
     } catch (error) {
       notify('', [{ error }]);
@@ -444,6 +472,7 @@ export function SessionView({
       if (kind === 'archive') await archiveMany(ids);
       if (kind === 'trash') await trashMany(rows);
       if (kind === 'purge') await purgeMany(ids);
+      if (kind === 'forcePurge') await purgeMany(ids, true);
     } finally {
       setBusy(false);
     }
@@ -1207,6 +1236,9 @@ export function SessionView({
             </span>
           </div>
           <div className="dsv-toolbarActions">
+            <button type="button" className="dsv-btn" disabled={busy} onClick={runCheck}>
+              {t('action.check')}
+            </button>
             <button
               type="button"
               className="dsv-btn"
@@ -1333,6 +1365,18 @@ export function SessionView({
                   }}
                 >
                   {t('batch.purge')}
+                </button>
+                <button
+                  type="button"
+                  className="dsv-btn"
+                  data-tone="danger"
+                  disabled={selected.length === 0}
+                  onClick={() => {
+                    const rows = trashed.filter((row) => selectedSet.has(row.session.id));
+                    requestConfirm('forcePurge', rows);
+                  }}
+                >
+                  {t('batch.forcePurge')}
                 </button>
               </>
             )}

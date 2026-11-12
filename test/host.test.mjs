@@ -40,7 +40,7 @@ function makeCtx(root, header, options = {}) {
     },
     sessions: {
       get() {
-        return options.live ? { id: header?.id } : undefined;
+        return options.live ? { id: header?.id, running: options.running === true } : undefined;
       },
     },
     workspaceRegistry: {
@@ -140,6 +140,52 @@ test('trash/purge refuses a live session and keeps its files', async () => {
   assert.match(result.data.failed[0].error, /无法彻底删除/);
   assert.equal(await exists(dir), true);
   ctx.cleanup?.();
+});
+
+test('trash/purge with force removes a non-running live session entry', async () => {
+  const root = await makeRoot();
+  const header = { id: 'session-force', cwd: 'C:/work/force', title: 'force' };
+  const { ctx, routes } = makeCtx(root, header, { live: true });
+  ctx.cleanup = undefined;
+  apply(ctx);
+  const dir = deriveSessionDir(root, header.cwd, header.id);
+  await mkdir(dir, { recursive: true });
+  await writeFile(join(dir, 'log.jsonl'), '{}\n');
+  const result = await call(routes, '/session-view/trash/purge', { sessionIds: [header.id], force: true });
+  assert.equal(result.status, 200);
+  assert.deepEqual(result.data.purged, [header.id]);
+  assert.equal(await stat(dir).then(() => true, () => false), false);
+});
+
+test('trash/purge with force still refuses a running session', async () => {
+  const root = await makeRoot();
+  const header = { id: 'session-running', cwd: 'C:/work/running', title: 'running' };
+  const { ctx, routes } = makeCtx(root, header, { live: true, running: true });
+  ctx.cleanup = undefined;
+  apply(ctx);
+  const dir = deriveSessionDir(root, header.cwd, header.id);
+  await mkdir(dir, { recursive: true });
+  await writeFile(join(dir, 'log.jsonl'), '{}\n');
+  const result = await call(routes, '/session-view/trash/purge', { sessionIds: [header.id], force: true });
+  assert.equal(result.status, 200);
+  assert.equal(result.data.purged.length, 0);
+  assert.match(result.data.failed[0].error, /正在运行/);
+  assert.equal(await stat(dir).then(() => true, () => false), true);
+});
+
+test('trash/purge removes a stale log the registry no longer lists', async () => {
+  const root = await makeRoot();
+  const id = 'session-forgotten';
+  const { ctx, routes } = makeCtx(root, undefined);
+  ctx.cleanup = undefined;
+  apply(ctx);
+  const dir = deriveSessionDir(root, 'C:/work/forgotten', id);
+  await mkdir(dir, { recursive: true });
+  await writeFile(join(dir, 'session.v4.jsonl.zstd'), 'stale');
+  const result = await call(routes, '/session-view/trash/purge', { sessionIds: [id] });
+  assert.equal(result.status, 200);
+  assert.deepEqual(result.data.purged, [id]);
+  assert.equal(await stat(dir).then(() => true, () => false), false);
 });
 
 test('trash/purge refuses a writer-owned session', async () => {
